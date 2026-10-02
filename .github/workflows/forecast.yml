@@ -1,0 +1,54 @@
+name: Update GeoSphere temperature forecast
+
+on:
+  schedule:
+    # Once per day, early in the Austrian morning:
+    # 04:30 UTC = 06:30 CEST / 05:30 CET.
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate-forecast-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Update GeoSphere forecast
+        id: forecast_update
+        continue-on-error: true
+        run: python scripts/update_forecast.py
+
+      - name: Commit forecast data
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/data/forecast.json
+          if git diff --cached --quiet; then
+            echo "No forecast changes."
+          else
+            git commit -m "Update GeoSphere temperature forecast"
+            git push
+          fi
+
+      - name: Mark workflow as failed when forecast update failed
+        if: steps.forecast_update.outcome == 'failure'
+        run: exit 1
