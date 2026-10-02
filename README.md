@@ -1,6 +1,6 @@
 # KURIER Klima-Monitor
 
-Daten-Backend für den interaktiven Klima-Monitor auf kurier.at/Shorthand.
+Daten-Backend für den interaktiven Klima-Monitor auf kurier.at.
 
 ## Öffentliche URLs nach Aktivierung von GitHub Pages
 
