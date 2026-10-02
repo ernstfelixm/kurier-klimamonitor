@@ -2,7 +2,9 @@ name: Update GeoSphere temperature data
 
 on:
   schedule:
-    - cron: "15 9 * * *"
+    # 12:30 UTC = 14:30 CEST / 13:30 CET.
+    # A later run gives GeoSphere more time to publish the previous day's values.
+    - cron: "30 12 * * *"
   workflow_dispatch:
 
 permissions:
@@ -15,6 +17,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,9 +32,12 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Update GeoSphere data
+        id: geosphere_update
+        continue-on-error: true
         run: python scripts/update.py
 
       - name: Commit changed data
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -42,3 +48,7 @@ jobs:
             git commit -m "Update GeoSphere temperature data"
             git push
           fi
+
+      - name: Mark workflow as failed when update failed
+        if: steps.geosphere_update.outcome == 'failure'
+        run: exit 1
