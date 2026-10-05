@@ -1,1 +1,1 @@
-{"status":"ok","last_update":"2026-10-04T18:55:52+02:00","latest_observation":"2026-10-03","metric":"tlmax","station_count":109,"total_station_count":938,"values_changed":106,"source":"GeoSphere Austria"}
+{"status":"ok","last_update":"2026-10-05T14:32:13+02:00","latest_observation":"2026-10-04","metric":"tlmax","station_count":109,"total_station_count":938,"values_changed":113,"official_values_changed":112,"provisional_values_added":1,"provisional_source":"GeoSphere Austria klima-v2-10min","source":"GeoSphere Austria"}
