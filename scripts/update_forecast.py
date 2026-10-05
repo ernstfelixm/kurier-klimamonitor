@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time as dtime
 from zoneinfo import ZoneInfo
 import csv
 import io
@@ -17,6 +17,7 @@ PARAMETER = "2t"
 TIMEOUT = 60
 REQUEST_PAUSE_SECONDS = 0.30
 MIN_SUCCESS_RATE = 0.90
+EARLIEST_LOCAL_FETCH_TIME = dtime(5, 15)
 
 
 def load_json(path):
@@ -79,6 +80,24 @@ def used_stations():
     return out
 
 
+def existing_complete_forecast_for_today(today, expected_station_count):
+    path = DATA / "forecast.json"
+    if not path.exists():
+        return False
+
+    try:
+        obj = load_json(path)
+    except Exception:
+        return False
+
+    return (
+        obj.get("status") == "ok"
+        and obj.get("forecast_date") == today.isoformat()
+        and int(obj.get("station_count", 0)) >= expected_station_count
+        and int(obj.get("expected_station_count", 0)) == expected_station_count
+    )
+
+
 def fetch_station_forecast(station):
     params = [
         ("parameters", PARAMETER),
@@ -135,10 +154,6 @@ def parse_time(raw):
 
 
 def find_parameter_column(fieldnames):
-    """
-    GeoSphere's CSV header includes the unit, e.g.
-    '2t [degree Celsius]' instead of plain '2t'.
-    """
     if not fieldnames:
         return None
 
@@ -190,6 +205,20 @@ def run():
     local_now = now_vienna()
     today = local_now.date()
     stations = used_stations()
+
+    if local_now.timetz().replace(tzinfo=None) < EARLIEST_LOCAL_FETCH_TIME:
+        print(
+            f"Skipping forecast fetch: local time {local_now.strftime('%H:%M')} is before "
+            f"{EARLIEST_LOCAL_FETCH_TIME.strftime('%H:%M')} Europe/Vienna."
+        )
+        return
+
+    if existing_complete_forecast_for_today(today, len(stations)):
+        print(
+            f"Skipping forecast fetch: complete forecast for {today.isoformat()} "
+            f"already exists for all {len(stations)} stations."
+        )
+        return
 
     results = {}
     errors = []
