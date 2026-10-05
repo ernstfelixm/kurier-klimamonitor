@@ -2,9 +2,18 @@ name: Update GeoSphere temperature forecast
 
 on:
   schedule:
-    # Once per day, early in the Austrian morning:
-    # 04:30 UTC = 06:30 CEST / 05:30 CET.
-    - cron: "30 4 * * *"
+    # Multiple early-morning backup slots. The Python script itself only
+    # performs the GeoSphere fetch once the local Vienna time is >= 05:15,
+    # and skips all later runs once today's complete forecast already exists.
+    # This covers daylight saving time automatically:
+    # - CEST: 03:15 UTC = 05:15 local
+    # - CET:  04:15 UTC = 05:15 local
+    - cron: "15 3 * * *"
+    - cron: "15 4 * * *"
+    - cron: "15 5 * * *"
+    - cron: "15 6 * * *"
+    - cron: "15 7 * * *"
+    - cron: "15 8 * * *"
   workflow_dispatch:
 
 permissions:
