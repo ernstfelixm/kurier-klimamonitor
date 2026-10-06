@@ -27,21 +27,21 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Update GeoSphere forecast
+      - name: Update GeoSphere forecast and map data
         id: forecast_update
         continue-on-error: true
         run: python scripts/update_forecast.py
 
-      - name: Commit forecast data
+      - name: Commit forecast and map data
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/data/forecast.json
+          git add docs/data/forecast.json docs/data/map_today.json docs/data/austria_states.geojson
           if git diff --cached --quiet; then
-            echo "No forecast changes."
+            echo "No forecast or map changes."
           else
-            git commit -m "Update GeoSphere temperature forecast"
+            git commit -m "Update GeoSphere temperature forecast and map"
             git push
           fi
 
