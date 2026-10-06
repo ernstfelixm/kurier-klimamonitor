@@ -1,7 +1,6 @@
 name: Update GeoSphere temperature data
 
 on:
-  schedule:
   workflow_dispatch:
 
 permissions:
