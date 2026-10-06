@@ -2,9 +2,6 @@ name: Update GeoSphere temperature data
 
 on:
   schedule:
-    # 12:30 UTC = 14:30 CEST / 13:30 CET.
-    # A later run gives GeoSphere more time to publish the previous day's values.
-    - cron: "30 12 * * *"
   workflow_dispatch:
 
 permissions:
