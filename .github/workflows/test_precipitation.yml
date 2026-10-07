@@ -1,7 +1,7 @@
 name: Test SPARTACUS precipitation
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -9,21 +9,32 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-      - run: pip install -r requirements.txt
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Build precipitation test data
         run: python scripts/test_precipitation.py
+
       - name: Commit test output
+        shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name github-actions
+          git config user.email actions@github.com
           git add docs/data/precipitation_test.json
-          if git diff --cached --quiet; then
+
+          if git diff --cached --quiet
+          then
             echo "No precipitation test changes."
           else
             git commit -m "Add SPARTACUS precipitation test data"
