@@ -1,0 +1,1 @@
+{"status":"partial","source":"GeoSphere Austria SPARTACUS v3 daily","resource_id":"spartacus-v3-1d-1km","parameter":"RR","metric":"rolling_30d_precipitation","unit":"mm","rolling_window_days":30,"reference_periods":["1961-1990","1991-2020"],"built_states":["Wien"],"mapped_municipality_count":1,"unique_grid_count":1,"generated_at":"2026-10-07"}
