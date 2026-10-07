@@ -1,0 +1,71 @@
+name: Build SPARTACUS precipitation climatology
+
+on:
+  workflow_dispatch:
+    inputs:
+      state:
+        description: "Bundesland oder all"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - Burgenland
+          - Kärnten
+          - Niederösterreich
+          - Oberösterreich
+          - Salzburg
+          - Steiermark
+          - Tirol
+          - Vorarlberg
+          - Wien
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate-precipitation-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build precipitation climatology
+        id: precipitation_build
+        continue-on-error: true
+        run: python scripts/build_precipitation.py --state "${{ inputs.state }}"
+
+      - name: Commit precipitation build
+        if: always()
+        shell: bash
+        run: |
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add docs/data/precipitation
+
+          if git diff --cached --quiet
+          then
+            echo "No precipitation build changes."
+          else
+            git commit -m "Build SPARTACUS precipitation climatology"
+            git push
+          fi
+
+      - name: Mark workflow as failed when build failed
+        if: steps.precipitation_build.outcome == 'failure'
+        run: exit 1
