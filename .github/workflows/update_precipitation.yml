@@ -1,0 +1,54 @@
+name: Update SPARTACUS precipitation data
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate-precipitation-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Update precipitation data
+        id: precipitation_update
+        continue-on-error: true
+        run: python scripts/update_precipitation.py
+
+      - name: Commit precipitation data
+        if: always()
+        shell: bash
+        run: |
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add docs/data/precipitation/current docs/data/precipitation/status.json
+
+          if git diff --cached --quiet
+          then
+            echo "No precipitation changes."
+          else
+            git commit -m "Update SPARTACUS precipitation data"
+            git push
+          fi
+
+      - name: Mark workflow as failed when update failed
+        if: steps.precipitation_update.outcome == 'failure'
+        run: exit 1
