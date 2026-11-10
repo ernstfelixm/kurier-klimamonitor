@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: climate-data-update
+  group: climate-data-write
   cancel-in-progress: false
 
 jobs:
