@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: climate-forecast-update
+  group: climate-data-write
   cancel-in-progress: false
 
 jobs:
@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -34,15 +36,23 @@ jobs:
 
       - name: Commit forecast and map data
         if: always()
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/data/forecast.json docs/data/map_today.json docs/data/austria_states.geojson
+
+          git add \
+            docs/data/forecast.json \
+            docs/data/map_today.json \
+            docs/data/austria_states.geojson
+
           if git diff --cached --quiet; then
             echo "No forecast or map changes."
           else
             git commit -m "Update GeoSphere temperature forecast and map"
-            git push
+
+            git pull --rebase origin main
+            git push origin main
           fi
 
       - name: Mark workflow as failed when forecast update failed
