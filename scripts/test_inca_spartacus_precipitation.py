@@ -106,26 +106,42 @@ def request_csv(api, coords, start, end, parameter):
 def parse_spartacus(text):
     reader = csv.DictReader(io.StringIO(text))
     fields = reader.fieldnames or []
-    time_col = find_column(fields, exact=("time", "date", "timestamp"), contains=("time", "date"))
-    lat_col = find_column(fields, exact=("lat", "latitude"), contains=("latitude", "lat"))
-    lon_col = find_column(fields, exact=("lon", "longitude"), contains=("longitude", "lon"))
-    tp_col = find_column(
+
+    time_col = find_column(
         fields,
-        exact=("tp",),
-        contains=("tp [", "tp[", "precip")
+        exact=("time", "date", "timestamp"),
+        contains=("time", "date"),
+    )
+    lat_col = find_column(
+        fields,
+        exact=("lat", "latitude"),
+        contains=("latitude", "lat"),
+    )
+    lon_col = find_column(
+        fields,
+        exact=("lon", "longitude"),
+        contains=("longitude", "lon"),
+    )
+    rr_col = find_column(
+        fields,
+        exact=("RR",),
+        contains=("rr [", "rr[", "precip"),
     )
 
-if not all((time_col, lat_col, lon_col, tp_col)):
-    raise RuntimeError(f"Unerwartete INCA-Spalten: {fields}")
+    if not all((time_col, lat_col, lon_col, rr_col)):
+        raise RuntimeError(f"Unerwartete SPARTACUS-Spalten: {fields}")
 
     rows = []
+
     for row in reader:
-        rr = parse_float(row.get(tp_col))
+        rr = parse_float(row.get(rr_col))
         lat = parse_float(row.get(lat_col))
         lon = parse_float(row.get(lon_col))
         raw = row.get(time_col)
+
         if raw and lat is not None and lon is not None:
             rows.append((str(raw)[:10], lat, lon, rr))
+
     return rows
 
 
@@ -142,21 +158,42 @@ def parse_iso_datetime(value: str) -> datetime:
 def parse_inca(text):
     reader = csv.DictReader(io.StringIO(text))
     fields = reader.fieldnames or []
-    time_col = find_column(fields, exact=("time", "date", "timestamp"), contains=("time", "date"))
-    lat_col = find_column(fields, exact=("lat", "latitude"), contains=("latitude", "lat"))
-    lon_col = find_column(fields, exact=("lon", "longitude"), contains=("longitude", "lon"))
-    rr_col = find_column(fields, exact=("RR",), contains=("rr [", "rr[", "precip"))
-    if not all((time_col, lat_col, lon_col, rr_col)):
+
+    time_col = find_column(
+        fields,
+        exact=("time", "date", "timestamp"),
+        contains=("time", "date"),
+    )
+    lat_col = find_column(
+        fields,
+        exact=("lat", "latitude"),
+        contains=("latitude", "lat"),
+    )
+    lon_col = find_column(
+        fields,
+        exact=("lon", "longitude"),
+        contains=("longitude", "lon"),
+    )
+    tp_col = find_column(
+        fields,
+        exact=("tp",),
+        contains=("tp [", "tp[", "precip"),
+    )
+
+    if not all((time_col, lat_col, lon_col, tp_col)):
         raise RuntimeError(f"Unerwartete INCA-Spalten: {fields}")
 
     rows = []
+
     for row in reader:
-        rr = parse_float(row.get(rr_col))
+        rr = parse_float(row.get(tp_col))
         lat = parse_float(row.get(lat_col))
         lon = parse_float(row.get(lon_col))
         raw = row.get(time_col)
+
         if raw and lat is not None and lon is not None and rr is not None:
             rows.append((parse_iso_datetime(raw), lat, lon, rr))
+
     return rows
 
 
