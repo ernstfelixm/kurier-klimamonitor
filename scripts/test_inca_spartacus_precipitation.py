@@ -526,43 +526,43 @@ def main():
 
     replacement_stats = {}
 
-for replace_days in (1, 2, 3):
-    diffs_mm = []
-    diffs_pct = []
+    for replace_days in (1, 2, 3):
+        diffs_mm = []
+        diffs_pct = []
 
-    for p in report_places:
-        for r in p["rolling30_comparisons"]:
-            if r["inca_days"] != replace_days:
-                continue
+        for p in report_places:
+            for r in p["rolling30_comparisons"]:
+                if r["inca_days"] != replace_days:
+                    continue
 
-            diffs_mm.append(abs(r["difference_mm"]))
+                diffs_mm.append(abs(r["difference_mm"]))
 
-            if r["difference_percent"] is not None:
-                diffs_pct.append(abs(r["difference_percent"]))
+                if r["difference_percent"] is not None:
+                    diffs_pct.append(abs(r["difference_percent"]))
 
-    replacement_stats[str(replace_days)] = {
-        "n": len(diffs_mm),
-        "abs_difference_mm_median": (
-            round(statistics.median(diffs_mm), 2)
-            if diffs_mm
-            else None
-        ),
-        "abs_difference_mm_max": (
-            round(max(diffs_mm), 2)
-            if diffs_mm
-            else None
-        ),
-        "abs_difference_percent_median": (
-            round(statistics.median(diffs_pct), 1)
-            if diffs_pct
-            else None
-        ),
-        "abs_difference_percent_max": (
-            round(max(diffs_pct), 1)
-            if diffs_pct
-            else None
-        ),
-    }
+        replacement_stats[str(replace_days)] = {
+            "n": len(diffs_mm),
+            "abs_difference_mm_median": (
+                round(statistics.median(diffs_mm), 2)
+                if diffs_mm
+                else None
+            ),
+            "abs_difference_mm_max": (
+                round(max(diffs_mm), 2)
+                if diffs_mm
+                else None
+            ),
+            "abs_difference_percent_median": (
+                round(statistics.median(diffs_pct), 1)
+                if diffs_pct
+                else None
+            ),
+            "abs_difference_percent_max": (
+                round(max(diffs_pct), 1)
+                if diffs_pct
+                else None
+            ),
+        }
 
     summary = {
         "status": "ok",
