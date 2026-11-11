@@ -19,7 +19,8 @@ PRECIP = ROOT / "docs" / "data" / "precipitation"
 SPARTACUS_API = "https://dataset.api.hub.geosphere.at/v1/timeseries/historical/spartacus-v3-1d-1km"
 INCA_API = "https://dataset.api.hub.geosphere.at/v1/timeseries/historical/inca-v2-1h-1km"
 INCA_METADATA = INCA_API + "/metadata"
-PARAMETER = "tp"
+SPARTACUS_PARAMETER = "RR"
+INCA_PARAMETER = "tp"
 
 VIENNA = ZoneInfo("Europe/Vienna")
 TIMEOUT = 180
@@ -86,9 +87,9 @@ def request_text(url, params=None):
     raise RuntimeError(f"GeoSphere request failed: {last_error}")
 
 
-def request_csv(api, coords, start, end):
+def request_csv(api, coords, start, end, parameter):
     params = [
-        ("parameters", PARAMETER),
+        ("parameters", parameter),
         ("start", start),
         ("end", end),
         ("output_format", "csv"),
@@ -357,10 +358,18 @@ def main():
         metadata = {"metadata_error": str(exc)}
 
     sp_text = request_csv(
-        SPARTACUS_API, coords, sp_start.isoformat(), overlap_end.isoformat()
+        SPARTACUS_API,
+        coords,
+        sp_start.isoformat(),
+        overlap_end.isoformat(),
+        SPARTACUS_PARAMETER,
     )
     inca_text = request_csv(
-        INCA_API, coords, inca_start, inca_end
+        INCA_API,
+        coords,
+        inca_start,
+        inca_end,
+        INCA_PARAMETER,
     )
 
     sp_rows = parse_spartacus(sp_text)
