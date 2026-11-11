@@ -28,20 +28,6 @@ RETRIES = 4
 # Räumlich breit gestreute Stichprobe. Fehlende Gemeinden werden übersprungen.
 DEFAULT_PLACES = [
     "Wien",
-    "Bregenz",
-    "Innsbruck",
-    "Reutte",
-    "Salzburg",
-    "Linz",
-    "Graz",
-    "Klagenfurt am Wörthersee",
-    "Eisenstadt",
-    "St. Pölten",
-    "Lienz",
-    "Bad Ischl",
-    "Mariazell",
-    "Zwettl-Niederösterreich",
-    "Neusiedl am See",
 ]
 
 
@@ -333,8 +319,8 @@ def main():
     ap = argparse.ArgumentParser(
         description="Methodischer Overlap-Test: SPARTACUS v3 daily vs. INCA v2 hourly RR."
     )
-    ap.add_argument("--start", default="2026-10-01", help="Erster Überlappungstag, YYYY-MM-DD")
-    ap.add_argument("--end", default=None, help="Letzter Testtag, YYYY-MM-DD; Default: gestern")
+    ap.add_argument("--start", default="2026-11-10", help="Erster Überlappungstag, YYYY-MM-DD")
+    ap.add_argument("--end", default="2026-11-10", help="Letzter Testtag, YYYY-MM-DD")
     ap.add_argument(
         "--places",
         default=",".join(DEFAULT_PLACES),
