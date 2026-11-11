@@ -579,7 +579,6 @@ for replace_days in (1, 2, 3):
         "place_count": len(places),
         "pooled_daily_metrics": pooled,
         "rolling30_replacement_test": replacement_stats,
-        ),
         "interpretation_hint": (
             "Kein fixer Akzeptanzgrenzwert ist eingebaut. Entscheidend sind systematischer Bias, "
             "MAE/RMSE, räumliche Ausreißer und der Effekt auf die 30-Tage-Summe."
