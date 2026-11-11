@@ -359,8 +359,8 @@ def main():
 
     # INCA v2 beginnt am 1.10.2026. Stunde 00 UTC des Folgetags mitnehmen,
     # damit ein lokaler Kalendertag vollständig aggregiert werden kann.
-    inca_start = overlap_start.isoformat() + "T00:00:00Z"
-    inca_end = (overlap_end + timedelta(days=1)).isoformat() + "T00:00:00Z"
+    inca_start = overlap_start.isoformat() + "T00:00"
+    inca_end = (overlap_end + timedelta(days=1)).isoformat() + "T00:00"
 
     # Metadaten nur zur Dokumentation. Fehler hier soll den Test nicht abbrechen.
     metadata = None
