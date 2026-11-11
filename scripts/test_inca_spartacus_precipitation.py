@@ -19,7 +19,7 @@ PRECIP = ROOT / "docs" / "data" / "precipitation"
 SPARTACUS_API = "https://dataset.api.hub.geosphere.at/v1/timeseries/historical/spartacus-v3-1d-1km"
 INCA_API = "https://dataset.api.hub.geosphere.at/v1/timeseries/historical/inca-v2-1h-1km"
 INCA_METADATA = INCA_API + "/metadata"
-PARAMETER = "RR"
+PARAMETER = "tp"
 
 VIENNA = ZoneInfo("Europe/Vienna")
 TIMEOUT = 180
