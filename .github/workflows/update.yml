@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -42,7 +44,8 @@ jobs:
             echo "No data changes."
           else
             git commit -m "Update GeoSphere temperature data"
-            git push
+            git pull --rebase origin main
+            git push origin main
           fi
 
       - name: Mark workflow as failed when update failed
