@@ -344,27 +344,53 @@ def rolling30(values, end_day):
 
 def hybrid_rolling_comparisons(sp, inc, overlap_start, overlap_end):
     rows = []
+
     d = overlap_start
     while d <= overlap_end:
         pure = rolling30(sp, d)
+
         if pure is None:
             d += timedelta(days=1)
             continue
 
-        hybrid = dict(sp)
-        for dd, vv in inc.items():
-            if overlap_start <= dd <= d and vv is not None:
-                hybrid[dd] = vv
-        hy = rolling30(hybrid, d)
-        if hy is not None:
+        for replace_days in (1, 2, 3):
+            hybrid = dict(sp)
+
+            replacement_ok = True
+
+            for offset in range(replace_days):
+                dd = d - timedelta(days=offset)
+                value = inc.get(dd)
+
+                if value is None:
+                    replacement_ok = False
+                    break
+
+                hybrid[dd] = value
+
+            if not replacement_ok:
+                continue
+
+            hy = rolling30(hybrid, d)
+
+            if hy is None:
+                continue
+
             rows.append({
                 "date": d.isoformat(),
+                "inca_days": replace_days,
                 "spartacus_30d_mm": round(pure, 2),
                 "hybrid_30d_mm": round(hy, 2),
                 "difference_mm": round(hy - pure, 2),
-                "difference_percent": round((hy / pure - 1) * 100, 1) if pure > 0 else None,
+                "difference_percent": (
+                    round((hy / pure - 1) * 100, 1)
+                    if pure > 0
+                    else None
+                ),
             })
+
         d += timedelta(days=1)
+
     return rows
 
 
@@ -498,13 +524,45 @@ def main():
 
     pooled = pooled_metrics(all_pairs)
 
-    all_roll_diffs = []
-    all_roll_pct = []
+    replacement_stats = {}
+
+for replace_days in (1, 2, 3):
+    diffs_mm = []
+    diffs_pct = []
+
     for p in report_places:
         for r in p["rolling30_comparisons"]:
-            all_roll_diffs.append(abs(r["difference_mm"]))
+            if r["inca_days"] != replace_days:
+                continue
+
+            diffs_mm.append(abs(r["difference_mm"]))
+
             if r["difference_percent"] is not None:
-                all_roll_pct.append(abs(r["difference_percent"]))
+                diffs_pct.append(abs(r["difference_percent"]))
+
+    replacement_stats[str(replace_days)] = {
+        "n": len(diffs_mm),
+        "abs_difference_mm_median": (
+            round(statistics.median(diffs_mm), 2)
+            if diffs_mm
+            else None
+        ),
+        "abs_difference_mm_max": (
+            round(max(diffs_mm), 2)
+            if diffs_mm
+            else None
+        ),
+        "abs_difference_percent_median": (
+            round(statistics.median(diffs_pct), 1)
+            if diffs_pct
+            else None
+        ),
+        "abs_difference_percent_max": (
+            round(max(diffs_pct), 1)
+            if diffs_pct
+            else None
+        ),
+    }
 
     summary = {
         "status": "ok",
@@ -520,17 +578,7 @@ def main():
         "selection_rule": "lower pooled daily MAE against SPARTACUS in overlap",
         "place_count": len(places),
         "pooled_daily_metrics": pooled,
-        "rolling30_abs_difference_mm_median": (
-            round(statistics.median(all_roll_diffs), 2) if all_roll_diffs else None
-        ),
-        "rolling30_abs_difference_mm_max": (
-            round(max(all_roll_diffs), 2) if all_roll_diffs else None
-        ),
-        "rolling30_abs_difference_percent_median": (
-            round(statistics.median(all_roll_pct), 1) if all_roll_pct else None
-        ),
-        "rolling30_abs_difference_percent_max": (
-            round(max(all_roll_pct), 1) if all_roll_pct else None
+        "rolling30_replacement_test": replacement_stats,
         ),
         "interpretation_hint": (
             "Kein fixer Akzeptanzgrenzwert ist eingebaut. Entscheidend sind systematischer Bias, "
