@@ -37,10 +37,10 @@ WINDOW_RADIUS_DAYS = 3
 #
 # 35 Rasterpunkte bleiben damit klar unter
 # dem GeoSphere-Limit von 1 Mio. Datenpunkten.
-HISTORY_COORD_BATCH = 35
+HISTORY_COORD_BATCH = 15
 
 TIMEOUT = 240
-RETRIES = 4
+RETRIES = 6
 
 # Erwartet werden bei ±3 Tagen ungefähr
 # 7 Tage * 30 Jahre = ca. 210 Werte.
@@ -225,7 +225,7 @@ def request_csv(
             last_error = exc
 
             if attempt + 1 < RETRIES:
-                wait = 2 ** attempt
+                wait = 5 * (2 ** attempt)
 
                 print(
                     f"Request fehlgeschlagen. "
@@ -629,6 +629,10 @@ def fetch_history_for_grids(
         rows = parse_rows(
             text
         )
+
+        # GeoSphere bei großen historischen SNOWGRID-
+        # Abfragen etwas Luft zwischen den Requests geben.
+        time.sleep(2)
 
         for (
             day,
