@@ -1,8 +1,6 @@
 from pathlib import Path
 from datetime import datetime, timezone, time as dtime
 from zoneinfo import ZoneInfo
-import csv
-import io
 import json
 import math
 import time
@@ -19,6 +17,8 @@ DATA = ROOT / "docs" / "data"
 
 PARAMETER = "2t"
 TIMEOUT = 60
+BATCH_SIZE = 25
+REQUEST_ATTEMPTS = 4
 REQUEST_PAUSE_SECONDS = 0.30
 MIN_SUCCESS_RATE = 0.90
 EARLIEST_LOCAL_FETCH_TIME = dtime(5, 15)
@@ -108,27 +108,51 @@ def existing_complete_forecast_for_today(today, expected_station_count):
     return None
 
 
-def fetch_station_forecast(station):
-    params = [
-        ("parameters", PARAMETER),
-        ("lat_lon", f'{station["lat"]},{station["lon"]}'),
-        ("output_format", "csv"),
-    ]
+def fetch_forecast_batch(stations):
+    params = [("parameters", PARAMETER), ("output_format", "geojson")]
+    params.extend(("lat_lon", f'{station["lat"]},{station["lon"]}') for station in stations)
 
-    last_error = None
-
-    for attempt in range(4):
+    for attempt in range(REQUEST_ATTEMPTS):
         try:
             response = requests.get(BASE, params=params, timeout=TIMEOUT)
             response.raise_for_status()
-            return response.text
-        except Exception as exc:
-            last_error = exc
-            time.sleep(2 ** attempt)
+            payload = response.json()
+            validate_forecast_batch(payload, len(stations))
+            return payload
+        except requests.HTTPError as exc:
+            status = exc.response.status_code
+            if status not in (408, 429) and status < 500:
+                raise RuntimeError(f"GeoSphere forecast request returned HTTP {status}") from exc
+            error = f"HTTP {status}"
+            retry_after = exc.response.headers.get("Retry-After", "")
+            if retry_after.isascii() and retry_after.isdecimal() and len(retry_after) <= 10:
+                if int(retry_after) > TIMEOUT:
+                    raise RuntimeError(f"GeoSphere forecast request returned HTTP {status}, retry later") from exc
+                delay = max(2 ** attempt, int(retry_after))
+            else:
+                delay = 2 ** attempt
+        except (requests.RequestException, ValueError) as exc:
+            error = type(exc).__name__ if isinstance(exc, requests.RequestException) else str(exc)
+            delay = 2 ** attempt
 
-    raise RuntimeError(
-        f'GeoSphere forecast request failed for station {station["id"]}: {last_error}'
-    )
+        if attempt < REQUEST_ATTEMPTS - 1:
+            time.sleep(delay)
+
+    raise RuntimeError(f"GeoSphere forecast request failed: {error}")
+
+
+def validate_forecast_batch(payload, station_count):
+    if not isinstance(payload, dict) or payload.get("type") != "FeatureCollection":
+        raise ValueError("Expected a GeoSphere forecast FeatureCollection")
+
+    timestamps = payload.get("timestamps")
+    if not isinstance(timestamps, list) or not timestamps:
+        raise ValueError("GeoSphere forecast response has no timestamps")
+
+    features = payload.get("features")
+    if not isinstance(features, list) or len(features) != station_count:
+        # An omitted feature would shift the positional mapping for later stations.
+        raise ValueError(f"Expected {station_count} GeoSphere features, one per requested location")
 
 
 def parse_number(raw):
@@ -163,52 +187,71 @@ def parse_time(raw):
     return dt
 
 
-def find_parameter_column(fieldnames):
-    if not fieldnames:
-        return None
+def daily_max_for_station(feature, station, timestamp_count, today_indices):
+    try:
+        lon, lat = feature["geometry"]["coordinates"]
+        temperatures = feature["properties"]["parameters"][PARAMETER]["data"]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("invalid GeoSphere location or temperature series") from exc
 
-    if PARAMETER in fieldnames:
-        return PARAMETER
+    # The API returns the nearest model grid point in request order. Adjacent
+    # requests can legitimately share a point. Allow up to one grid step per axis.
+    lon, lat = parse_number(lon), parse_number(lat)
+    if (
+        lon is None or lat is None
+        or abs(lon - station["lon"]) > 0.0135
+        or abs(lat - station["lat"]) > 0.009
+    ):
+        raise ValueError("GeoSphere grid point does not match requested location")
 
-    prefix = PARAMETER + " "
-    for name in fieldnames:
-        if name and (name.startswith(prefix) or name.startswith(PARAMETER + "[")):
-            return name
+    if not isinstance(temperatures, list) or len(temperatures) != timestamp_count:
+        raise ValueError("GeoSphere temperature series does not match timestamps")
 
-    return None
+    values = [parse_number(temperatures[index]) for index in today_indices]
+    valid_values = [value for value in values if value is not None]
+    if not valid_values:
+        raise ValueError("no forecast values for today's local date")
+
+    return round(max(valid_values), 1)
 
 
-def daily_max_for_today(csv_text, today_local):
-    reader = csv.DictReader(io.StringIO(csv_text))
-    parameter_column = find_parameter_column(reader.fieldnames)
+def collect_forecasts(stations, today):
+    results = {}
+    errors = []
+    vienna = ZoneInfo("Europe/Vienna")
 
-    if parameter_column is None:
-        raise RuntimeError(
-            f"Temperature column not found. CSV columns: {reader.fieldnames}"
-        )
+    for start in range(0, len(stations), BATCH_SIZE):
+        batch = stations[start:start + BATCH_SIZE]
+        if start:
+            time.sleep(REQUEST_PAUSE_SECONDS)
 
-    values = []
-
-    for row in reader:
-        raw_time = row.get("time") or row.get("date") or row.get("timestamp")
-        dt = parse_time(raw_time)
-        if dt is None:
+        try:
+            payload = fetch_forecast_batch(batch)
+        except RuntimeError as exc:
+            errors.extend({"station_id": station["id"], "error": str(exc)[:300]} for station in batch)
+            print(f"Stations {start + 1}–{start + len(batch)}: {exc}")
             continue
 
-        local_dt = dt.astimezone(ZoneInfo("Europe/Vienna"))
-        if local_dt.date() != today_local:
-            continue
+        timestamps = payload["timestamps"]
+        today_indices = []
+        for index, raw_time in enumerate(timestamps):
+            dt = parse_time(raw_time)
+            if dt is not None and dt.astimezone(vienna).date() == today:
+                today_indices.append(index)
 
-        value = parse_number(row.get(parameter_column))
-        if value is None:
-            continue
+        successful = 0
+        for station, feature in zip(batch, payload["features"]):
+            try:
+                results[str(station["id"])] = daily_max_for_station(
+                    feature, station, len(timestamps), today_indices
+                )
+                successful += 1
+            except ValueError as exc:
+                errors.append({"station_id": station["id"], "error": str(exc)})
 
-        values.append(value)
+        print(f"Stations {start + 1}–{start + len(batch)}: {successful}/{len(batch)} forecasts")
 
-    if not values:
-        return None
-
-    return round(max(values), 1)
+    return results, errors
 
 
 def ensure_austria_states_geojson():
@@ -360,40 +403,7 @@ def run():
         )
         return
 
-    results = {}
-    errors = []
-
-    for index, station in enumerate(stations, start=1):
-        try:
-            csv_text = fetch_station_forecast(station)
-            tlmax = daily_max_for_today(csv_text, today)
-
-            if tlmax is None:
-                errors.append(
-                    {
-                        "station_id": station["id"],
-                        "error": "no forecast values for today's local date",
-                    }
-                )
-            else:
-                results[str(station["id"])] = tlmax
-
-        except Exception as exc:
-            errors.append(
-                {
-                    "station_id": station["id"],
-                    "error": str(exc)[:300],
-                }
-            )
-
-        print(
-            f'[{index}/{len(stations)}] station {station["id"]}: '
-            f'{results.get(str(station["id"]), "no value")}'
-        )
-
-        if index < len(stations):
-            time.sleep(REQUEST_PAUSE_SECONDS)
-
+    results, errors = collect_forecasts(stations, today)
     success_rate = len(results) / len(stations) if stations else 0
 
     output = {
