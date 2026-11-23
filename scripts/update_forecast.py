@@ -481,63 +481,84 @@ def build_map_today(forecast_obj, stations, local_now):
 def run():
     local_now = now_vienna()
     today = local_now.date()
-    stations = used_stations()
+    grids = used_grids()
 
-    # Static geometry is needed only once. If already present, this is a no-op.
+    # Static geometry is needed only once.
     ensure_austria_states_geojson()
 
-    existing = existing_complete_forecast_for_today(today, len(stations))
+    existing = existing_complete_forecast_for_today(
+        today,
+        len(grids),
+    )
+
     if existing is not None:
         print(
-            f"Skipping forecast fetch: complete forecast for {today.isoformat()} "
-            f"already exists for all {len(stations)} stations."
+            f"Skipping forecast fetch: complete forecast for "
+            f"{today.isoformat()} already exists for all "
+            f"{len(grids)} grids."
         )
-        # Still rebuild map_today.json. This is useful directly after installing
-        # the map feature, even when today's forecast already exists.
-        build_map_today(existing, stations, local_now)
         return
 
-    if local_now.timetz().replace(tzinfo=None) < EARLIEST_LOCAL_FETCH_TIME:
+    if (
+        local_now.timetz().replace(tzinfo=None)
+        < EARLIEST_LOCAL_FETCH_TIME
+    ):
         print(
-            f"Skipping forecast fetch: local time {local_now.strftime('%H:%M')} is before "
-            f"{EARLIEST_LOCAL_FETCH_TIME.strftime('%H:%M')} Europe/Vienna."
+            f"Skipping forecast fetch: local time "
+            f"{local_now.strftime('%H:%M')} is before "
+            f"{EARLIEST_LOCAL_FETCH_TIME.strftime('%H:%M')} "
+            f"Europe/Vienna."
         )
         return
 
-    results, errors = collect_forecasts(stations, today)
-    success_rate = len(results) / len(stations) if stations else 0
+    results, errors = collect_forecasts(
+        grids,
+        today,
+    )
+
+    success_rate = (
+        len(results) / len(grids)
+        if grids
+        else 0
+    )
 
     output = {
-        "status": "ok" if success_rate >= MIN_SUCCESS_RATE else "error",
+        "status": (
+            "ok"
+            if success_rate >= MIN_SUCCESS_RATE
+            else "error"
+        ),
         "forecast_date": today.isoformat(),
-        "generated_at": local_now.isoformat(timespec="seconds"),
+        "generated_at": local_now.isoformat(
+            timespec="seconds"
+        ),
         "metric": "tlmax_forecast",
         "parameter": PARAMETER,
         "unit": "°C",
         "model": "GeoSphere Austria NWP-v2 1 km",
-        "station_count": len(results),
-        "expected_station_count": len(stations),
-        "stations": results,
+        "grid_count": len(results),
+        "expected_grid_count": len(grids),
+        "grids": results,
     }
 
     if errors:
         output["errors"] = errors[:25]
         output["error_count"] = len(errors)
 
-    save_json(DATA / "forecast.json", output)
+    save_json(
+        DATA / "forecast.json",
+        output,
+    )
 
     print(
-        f'Forecast written: {len(results)}/{len(stations)} stations '
-        f'({success_rate:.1%}), date {today.isoformat()}'
+        f"Forecast written: "
+        f"{len(results)}/{len(grids)} grids "
+        f"({success_rate:.1%}), "
+        f"date {today.isoformat()}"
     )
 
     if output["status"] != "ok":
         raise RuntimeError(
-            f"Forecast coverage too low: {len(results)}/{len(stations)} stations"
+            f"Forecast coverage too low: "
+            f"{len(results)}/{len(grids)} grids"
         )
-
-    build_map_today(output, stations, local_now)
-
-
-if __name__ == "__main__":
-    run()
