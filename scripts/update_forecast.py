@@ -41,52 +41,6 @@ def now_vienna():
     return datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Vienna"))
 
 
-def used_station_ids():
-    obj = load_json(DATA / "municipalities.json")
-    columns = obj["columns"]
-    station_index = columns.index("station_id")
-
-    return {
-        int(row[station_index])
-        for row in obj["municipalities"]
-        if row[station_index] not in (None, "")
-    }
-
-
-def used_stations():
-    stations = load_json(DATA / "stations.json")["stations"]
-    wanted = used_station_ids()
-    by_id = {int(s["id"]): s for s in stations}
-
-    missing = sorted(wanted - set(by_id))
-    if missing:
-        raise RuntimeError(
-            f"{len(missing)} station IDs from municipalities.json are missing in stations.json"
-        )
-
-    out = []
-    for sid in sorted(wanted):
-        station = by_id[sid]
-        lat = station.get("lat")
-        lon = station.get("lon")
-
-        if lat is None or lon is None:
-            raise RuntimeError(f"Station {sid} has no coordinates")
-
-        out.append(
-            {
-                "id": sid,
-                "name": station.get("name"),
-                "state": station.get("state"),
-                "state_slug": station.get("state_slug"),
-                "lat": float(lat),
-                "lon": float(lon),
-            }
-        )
-
-    return out
-
-
 def used_grids():
     obj = load_json(
         DATA
