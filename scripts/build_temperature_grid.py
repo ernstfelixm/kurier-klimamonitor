@@ -205,83 +205,133 @@ def percentile(values, q):
     return vals[lo] * (1 - frac) + vals[hi] * frac
 
 
-def rolling_30(day_values):
-    """
-    Exact 30-calendar-day sum. A value is emitted only if all 30 daily RR
-    values exist, so missing source days never silently become zero.
-    """
-    if not day_values:
-        return {}
+WINDOW_RADIUS_DAYS = 3
+MIN_WINDOW_VALUES = 150
 
-    dates = sorted(date.fromisoformat(d) for d in day_values)
-    start = dates[0]
-    end = dates[-1]
+CALENDAR_START = date(2000, 1, 1)
+
+CALENDAR_DAYS = [
+    (
+        CALENDAR_START
+        + timedelta(days=i)
+    ).strftime("%m-%d")
+    for i in range(366)
+]
+
+CALENDAR_INDEX = {
+    md: i
+    for i, md in enumerate(CALENDAR_DAYS)
+}
+
+
+def calendar_window(month_day):
+    center = CALENDAR_INDEX[month_day]
+
+    return [
+        CALENDAR_DAYS[
+            (center + offset) % len(CALENDAR_DAYS)
+        ]
+        for offset in range(
+            -WINDOW_RADIUS_DAYS,
+            WINDOW_RADIUS_DAYS + 1,
+        )
+    ]
+
+
+def split_reference_buckets(daily_values):
+    old = {}
+    modern = {}
+
+    for day, value in daily_values.items():
+        if value is None or not math.isfinite(value):
+            continue
+
+        try:
+            d = date.fromisoformat(day)
+        except ValueError:
+            continue
+
+        md = d.strftime("%m-%d")
+
+        if 1961 <= d.year <= 1990:
+            old.setdefault(md, []).append(value)
+
+        elif 1991 <= d.year <= 2020:
+            modern.setdefault(md, []).append(value)
+
+    return old, modern
+
+
+def stats_for_window(buckets, month_day):
+    values = []
+
+    for md in calendar_window(month_day):
+        values.extend(
+            buckets.get(md, [])
+        )
+
+    values = [
+        v
+        for v in values
+        if v is not None and math.isfinite(v)
+    ]
+
+    n = len(values)
+
+    if n < MIN_WINDOW_VALUES:
+        return {
+            "p20": None,
+            "median": None,
+            "p80": None,
+            "n": n,
+        }
+
+    return {
+        "p20": round(
+            percentile(values, 0.20),
+            1,
+        ),
+        "median": round(
+            statistics.median(values),
+            1,
+        ),
+        "p80": round(
+            percentile(values, 0.80),
+            1,
+        ),
+        "n": n,
+    }
+
+
+def climatology(daily_values):
+    old_buckets, modern_buckets = (
+        split_reference_buckets(
+            daily_values
+        )
+    )
 
     out = {}
-    window = []
-    running = 0.0
 
-    d = start
-    while d <= end:
-        key = d.isoformat()
-        value = day_values.get(key)
-        window.append(value)
+    for md in CALENDAR_DAYS:
+        old = stats_for_window(
+            old_buckets,
+            md,
+        )
 
-        if value is not None:
-            running += value
+        modern = stats_for_window(
+            modern_buckets,
+            md,
+        )
 
-        if len(window) > 30:
-            old = window.pop(0)
-            if old is not None:
-                running -= old
-
-        if len(window) == 30 and all(v is not None for v in window):
-            out[key] = round(running, 1)
-
-        d += timedelta(days=1)
-
-    return out
-
-
-def climatology(rolling):
-    buckets_old = {}
-    buckets_modern = {}
-
-    for day, value in rolling.items():
-        year = int(day[:4])
-        md = day[5:]
-        if 1961 <= year <= 1990:
-            buckets_old.setdefault(md, []).append(value)
-        elif 1991 <= year <= 2020:
-            buckets_modern.setdefault(md, []).append(value)
-
-    out = {}
-    all_days = sorted(set(buckets_old) | set(buckets_modern))
-
-    for md in all_days:
-        old = buckets_old.get(md, [])
-        modern = buckets_modern.get(md, [])
-
-        def stats(values):
-            if len(values) < 20:
-                return [None, None, None]
-            return [
-                round(percentile(values, 0.20), 1),
-                round(statistics.median(values), 1),
-                round(percentile(values, 0.80), 1),
-            ]
-
-        o20, omed, o80 = stats(old)
-        m20, mmed, m80 = stats(modern)
         out[md] = [
-            o20,
-            omed,
-            o80,
-            m20,
-            mmed,
-            m80,
-            len(old),
-            len(modern),
+            old["p20"],
+            old["median"],
+            old["p80"],
+            modern["p20"],
+            modern["median"],
+            modern["p80"],
+            old["n"],
+            modern["n"],
         ]
 
     return out
