@@ -1,0 +1,34 @@
+name: Temperature Grid Current Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update-current:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Update recent SPARTACUS temperature grid data
+        run: python scripts/update_temperature_grid.py
+
+      - name: Show generated files
+        run: |
+          ls -lh docs/data/temperature_grid/current
+          du -sh docs/data/temperature_grid/current
+
+      - name: Upload temperature grid current data
+        uses: actions/upload-artifact@v4
+        with:
+          name: temperature-grid-current
+          path: docs/data/temperature_grid/current/
