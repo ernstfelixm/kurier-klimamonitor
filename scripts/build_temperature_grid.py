@@ -159,25 +159,26 @@ def grid_id(lat, lon):
 
 
 def municipality_rows():
-    obj = load_json(DATA / "municipalities.json")
+    obj = load_json(DATA / "precipitation" / "municipalities.json")
+
     cols = obj["columns"]
     ix = {name: i for i, name in enumerate(cols)}
 
     out = []
+
     for row in obj["municipalities"]:
-        state = row[ix["state"]]
-        if state not in STATE_SLUGS:
-            raise RuntimeError(f"Unbekanntes Bundesland: {state}")
         out.append(
             {
                 "id": str(row[ix["id"]]),
                 "name": row[ix["name"]],
-                "state": state,
-                "state_slug": STATE_SLUGS[state],
-                "lat": float(row[ix["lat"]]),
-                "lon": float(row[ix["lon"]]),
+                "state": row[ix["state"]],
+                "state_slug": row[ix["state_slug"]],
+                "grid_id": row[ix["grid_id"]],
+                "grid_lat": float(row[ix["grid_lat"]]),
+                "grid_lon": float(row[ix["grid_lon"]]),
             }
         )
+
     return out
 
 
@@ -185,50 +186,6 @@ def nearest_coord(lat, lon, coords):
     if not coords:
         raise RuntimeError("Keine SPARTACUS-Rasterkoordinate zurückgegeben.")
     return min(coords, key=lambda p: (p[0] - lat) ** 2 + (p[1] - lon) ** 2)
-
-
-def map_municipalities(places):
-    """
-    Ask SPARTACUS for a short recent window and record which 1-km grid cell is
-    returned for every municipality coordinate.
-    """
-    # Avoid today because the daily grid may not yet be published.
-    end = date.today() - timedelta(days=1)
-    start = end - timedelta(days=13)
-
-    mapped = []
-
-    for batch_no, batch in enumerate(chunks(places, MAPPING_PLACE_BATCH), start=1):
-        print(
-            f"Rasterzuordnung Batch {batch_no}: "
-            f"{len(batch)} Gemeinden ({batch[0]['state']})"
-        )
-        requested = [(p["lat"], p["lon"]) for p in batch]
-        rows = parse_rows(request_csv(requested, start, end))
-
-        returned = sorted(
-            {
-                (round(lat, 6), round(lon, 6))
-                for _day, lat, lon, _rr in rows
-            }
-        )
-        if not returned:
-            raise RuntimeError(
-                f"Keine Rasterpunkte für Mapping-Batch {batch_no} zurückgegeben."
-            )
-
-        for place in batch:
-            glat, glon = nearest_coord(place["lat"], place["lon"], returned)
-            mapped.append(
-                {
-                    **place,
-                    "grid_id": grid_id(glat, glon),
-                    "grid_lat": glat,
-                    "grid_lon": glon,
-                }
-            )
-
-    return mapped
 
 
 def percentile(values, q):
