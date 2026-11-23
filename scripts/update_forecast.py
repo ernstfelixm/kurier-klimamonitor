@@ -87,6 +87,43 @@ def used_stations():
     return out
 
 
+def used_grids():
+    obj = load_json(
+        DATA
+        / "precipitation"
+        / "municipalities.json"
+    )
+
+    columns = obj["columns"]
+    ix = {
+        name: i
+        for i, name in enumerate(columns)
+    }
+
+    unique = {}
+
+    for row in obj["municipalities"]:
+        gid = row[ix["grid_id"]]
+
+        if not gid:
+            continue
+
+        unique[gid] = {
+            "id": gid,
+            "lat": float(
+                row[ix["grid_lat"]]
+            ),
+            "lon": float(
+                row[ix["grid_lon"]]
+            ),
+        }
+
+    return [
+        unique[gid]
+        for gid in sorted(unique)
+    ]
+
+
 def existing_complete_forecast_for_today(today, expected_station_count):
     path = DATA / "forecast.json"
     if not path.exists():
