@@ -1,0 +1,546 @@
+{
+  "source": "Statistik Austria Gemeinden - Schwerpunkte 2025-01-01",
+  "definition": "population-weighted municipality reference points",
+  "current_count": 2092,
+  "official_count": 2114,
+  "matched_count": 2091,
+  "missing_official_ids": [
+    "90001"
+  ],
+  "extra_official_ids": [
+    "90101",
+    "90201",
+    "90301",
+    "90401",
+    "90501",
+    "90601",
+    "90701",
+    "90801",
+    "90901",
+    "91001",
+    "91101",
+    "91201",
+    "91301",
+    "91401",
+    "91501",
+    "91601",
+    "91701",
+    "91801",
+    "91901",
+    "92001",
+    "92101",
+    "92201",
+    "92301"
+  ],
+  "distance_summary_km": {
+    "median": 0.004,
+    "p80": 0.005,
+    "p95": 0.006,
+    "max": 0.008,
+    "over_1_km": 0,
+    "over_2_km": 0,
+    "over_5_km": 0
+  },
+  "largest_changes": [
+    {
+      "id": "80404",
+      "name": "Feldkirch",
+      "state": "Vorarlberg",
+      "old_lat": 47.246151,
+      "old_lon": 9.591831,
+      "new_lat": 47.2462,
+      "new_lon": 9.5919,
+      "distance_km": 0.008
+    },
+    {
+      "id": "30101",
+      "name": "Krems an der Donau",
+      "state": "Niederösterreich",
+      "old_lat": 48.411655,
+      "old_lon": 15.610057,
+      "new_lat": 48.4116,
+      "new_lon": 15.6101,
+      "distance_km": 0.007
+    },
+    {
+      "id": "30539",
+      "name": "Weistrach",
+      "state": "Niederösterreich",
+      "old_lat": 48.052251,
+      "old_lon": 14.577648,
+      "new_lat": 48.0522,
+      "new_lon": 14.5776,
+      "distance_km": 0.007
+    },
+    {
+      "id": "30737",
+      "name": "Moosbrunn",
+      "state": "Niederösterreich",
+      "old_lat": 48.017955,
+      "old_lon": 16.458369,
+      "new_lat": 48.0179,
+      "new_lon": 16.4584,
+      "distance_km": 0.007
+    },
+    {
+      "id": "30812",
+      "name": "Ebenthal",
+      "state": "Niederösterreich",
+      "old_lat": 48.436753,
+      "old_lon": 16.788538,
+      "new_lat": 48.4367,
+      "new_lon": 16.7885,
+      "distance_km": 0.007
+    },
+    {
+      "id": "30835",
+      "name": "Marchegg",
+      "state": "Niederösterreich",
+      "old_lat": 48.260157,
+      "old_lon": 16.909561,
+      "new_lat": 48.2602,
+      "new_lon": 16.9095,
+      "distance_km": 0.007
+    },
+    {
+      "id": "31014",
+      "name": "Guntersdorf",
+      "state": "Niederösterreich",
+      "old_lat": 48.649556,
+      "old_lon": 16.040728,
+      "new_lat": 48.6495,
+      "new_lon": 16.0407,
+      "distance_km": 0.007
+    },
+    {
+      "id": "31230",
+      "name": "Stockerau",
+      "state": "Niederösterreich",
+      "old_lat": 48.387652,
+      "old_lon": 16.212949,
+      "new_lat": 48.3876,
+      "new_lon": 16.2129,
+      "distance_km": 0.007
+    },
+    {
+      "id": "31302",
+      "name": "Albrechtsberg an der Großen Krems",
+      "state": "Niederösterreich",
+      "old_lat": 48.452152,
+      "old_lon": 15.363355,
+      "new_lat": 48.4521,
+      "new_lon": 15.3634,
+      "distance_km": 0.007
+    },
+    {
+      "id": "31947",
+      "name": "Wilhelmsburg",
+      "state": "Niederösterreich",
+      "old_lat": 48.100653,
+      "old_lon": 15.602548,
+      "new_lat": 48.1006,
+      "new_lon": 15.6025,
+      "distance_km": 0.007
+    },
+    {
+      "id": "31950",
+      "name": "Mauerbach",
+      "state": "Niederösterreich",
+      "old_lat": 48.240855,
+      "old_lon": 16.178258,
+      "new_lat": 48.2408,
+      "new_lon": 16.1782,
+      "distance_km": 0.007
+    },
+    {
+      "id": "32142",
+      "name": "St. Andrä-Wördern",
+      "state": "Niederösterreich",
+      "old_lat": 48.325252,
+      "old_lon": 16.214456,
+      "new_lat": 48.3252,
+      "new_lon": 16.2144,
+      "distance_km": 0.007
+    },
+    {
+      "id": "32325",
+      "name": "Bromberg",
+      "state": "Niederösterreich",
+      "old_lat": 47.659655,
+      "old_lon": 16.226456,
+      "new_lat": 47.6597,
+      "new_lon": 16.2264,
+      "distance_km": 0.007
+    },
+    {
+      "id": "32511",
+      "name": "Gutenbrunn",
+      "state": "Niederösterreich",
+      "old_lat": 48.361556,
+      "old_lon": 15.117659,
+      "new_lat": 48.3615,
+      "new_lon": 15.1177,
+      "distance_km": 0.007
+    },
+    {
+      "id": "41628",
+      "name": "Vorderweißenbach",
+      "state": "Oberösterreich",
+      "old_lat": 48.551251,
+      "old_lon": 14.212255,
+      "new_lat": 48.5512,
+      "new_lon": 14.2123,
+      "distance_km": 0.007
+    },
+    {
+      "id": "50312",
+      "name": "Fuschl am See",
+      "state": "Salzburg",
+      "old_lat": 47.794652,
+      "old_lon": 13.30035,
+      "new_lat": 47.7946,
+      "new_lon": 13.3004,
+      "distance_km": 0.007
+    },
+    {
+      "id": "50422",
+      "name": "Untertauern",
+      "state": "Salzburg",
+      "old_lat": 47.301252,
+      "old_lon": 13.507247,
+      "new_lat": 47.3013,
+      "new_lon": 13.5073,
+      "distance_km": 0.007
+    },
+    {
+      "id": "50621",
+      "name": "Stuhlfelden",
+      "state": "Salzburg",
+      "old_lat": 47.288346,
+      "old_lon": 12.528743,
+      "new_lat": 47.2883,
+      "new_lon": 12.5288,
+      "distance_km": 0.007
+    },
+    {
+      "id": "70351",
+      "name": "Seefeld in Tirol",
+      "state": "Tirol",
+      "old_lat": 47.330655,
+      "old_lon": 11.188744,
+      "new_lat": 47.3307,
+      "new_lon": 11.1888,
+      "distance_km": 0.007
+    },
+    {
+      "id": "70406",
+      "name": "Hopfgarten im Brixental",
+      "state": "Tirol",
+      "old_lat": 47.437155,
+      "old_lon": 12.148041,
+      "new_lat": 47.4372,
+      "new_lon": 12.1481,
+      "distance_km": 0.007
+    },
+    {
+      "id": "70530",
+      "name": "Wildschönau",
+      "state": "Tirol",
+      "old_lat": 47.431556,
+      "old_lon": 12.047841,
+      "new_lat": 47.4316,
+      "new_lon": 12.0479,
+      "distance_km": 0.007
+    },
+    {
+      "id": "70612",
+      "name": "Kauns",
+      "state": "Tirol",
+      "old_lat": 47.078648,
+      "old_lon": 10.690848,
+      "new_lat": 47.0787,
+      "new_lon": 10.6909,
+      "distance_km": 0.007
+    },
+    {
+      "id": "70802",
+      "name": "Berwang",
+      "state": "Tirol",
+      "old_lat": 47.407344,
+      "old_lon": 10.744236,
+      "new_lat": 47.4073,
+      "new_lon": 10.7443,
+      "distance_km": 0.007
+    },
+    {
+      "id": "70805",
+      "name": "Breitenwang",
+      "state": "Tirol",
+      "old_lat": 47.491957,
+      "old_lon": 10.734239,
+      "new_lat": 47.492,
+      "new_lon": 10.7343,
+      "distance_km": 0.007
+    },
+    {
+      "id": "80103",
+      "name": "Bludenz",
+      "state": "Vorarlberg",
+      "old_lat": 47.153948,
+      "old_lon": 9.828237,
+      "new_lat": 47.154,
+      "new_lon": 9.8283,
+      "distance_km": 0.007
+    },
+    {
+      "id": "80210",
+      "name": "Doren",
+      "state": "Vorarlberg",
+      "old_lat": 47.494441,
+      "old_lon": 9.881032,
+      "new_lat": 47.4944,
+      "new_lon": 9.8811,
+      "distance_km": 0.007
+    },
+    {
+      "id": "80409",
+      "name": "Klaus",
+      "state": "Vorarlberg",
+      "old_lat": 47.308652,
+      "old_lon": 9.639933,
+      "new_lat": 47.3087,
+      "new_lon": 9.64,
+      "distance_km": 0.007
+    },
+    {
+      "id": "80419",
+      "name": "Schnifis",
+      "state": "Vorarlberg",
+      "old_lat": 47.214355,
+      "old_lon": 9.726234,
+      "new_lat": 47.2144,
+      "new_lon": 9.7263,
+      "distance_km": 0.007
+    },
+    {
+      "id": "10321",
+      "name": "Stotzing",
+      "state": "Burgenland",
+      "old_lat": 47.906952,
+      "old_lon": 16.546105,
+      "new_lat": 47.9069,
+      "new_lon": 16.5461,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10404",
+      "name": "Gerersdorf-Sulz",
+      "state": "Burgenland",
+      "old_lat": 47.071138,
+      "old_lon": 16.254859,
+      "new_lat": 47.0711,
+      "new_lon": 16.2548,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10417",
+      "name": "Tobaj",
+      "state": "Burgenland",
+      "old_lat": 47.103743,
+      "old_lon": 16.296656,
+      "new_lat": 47.1037,
+      "new_lon": 16.2966,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10423",
+      "name": "Tschanigraben",
+      "state": "Burgenland",
+      "old_lat": 47.007648,
+      "old_lon": 16.313281,
+      "new_lat": 47.0076,
+      "new_lon": 16.3133,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10504",
+      "name": "Jennersdorf",
+      "state": "Burgenland",
+      "old_lat": 46.947957,
+      "old_lon": 16.141156,
+      "new_lat": 46.948,
+      "new_lon": 16.1412,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10506",
+      "name": "Mogersdorf",
+      "state": "Burgenland",
+      "old_lat": 46.959546,
+      "old_lon": 16.227731,
+      "new_lat": 46.9595,
+      "new_lon": 16.2277,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10507",
+      "name": "Neuhaus am Klausenbach",
+      "state": "Burgenland",
+      "old_lat": 46.858947,
+      "old_lon": 16.02915,
+      "new_lat": 46.8589,
+      "new_lon": 16.0291,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10615",
+      "name": "Wiesen",
+      "state": "Burgenland",
+      "old_lat": 47.743551,
+      "old_lon": 16.336219,
+      "new_lat": 47.7435,
+      "new_lon": 16.3362,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10704",
+      "name": "Deutsch Jahrndorf",
+      "state": "Burgenland",
+      "old_lat": 48.009869,
+      "old_lon": 17.105262,
+      "new_lat": 48.0099,
+      "new_lon": 17.1052,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10706",
+      "name": "Gattendorf",
+      "state": "Burgenland",
+      "old_lat": 48.015464,
+      "old_lon": 16.980553,
+      "new_lat": 48.0155,
+      "new_lon": 16.9805,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10713",
+      "name": "Neusiedl am See",
+      "state": "Burgenland",
+      "old_lat": 47.948856,
+      "old_lon": 16.843253,
+      "new_lat": 47.9489,
+      "new_lon": 16.8432,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10726",
+      "name": "Potzneusiedl",
+      "state": "Burgenland",
+      "old_lat": 48.04255,
+      "old_lon": 16.948231,
+      "new_lat": 48.0425,
+      "new_lon": 16.9482,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10801",
+      "name": "Deutschkreutz",
+      "state": "Burgenland",
+      "old_lat": 47.600648,
+      "old_lon": 16.625946,
+      "new_lat": 47.6006,
+      "new_lon": 16.6259,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10811",
+      "name": "Mannersdorf an der Rabnitz",
+      "state": "Burgenland",
+      "old_lat": 47.423049,
+      "old_lon": 16.521625,
+      "new_lat": 47.423,
+      "new_lon": 16.5216,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10825",
+      "name": "Unterfrauenhaid",
+      "state": "Burgenland",
+      "old_lat": 47.571052,
+      "old_lon": 16.498575,
+      "new_lat": 47.571,
+      "new_lon": 16.4986,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10912",
+      "name": "Markt Allhau",
+      "state": "Burgenland",
+      "old_lat": 47.294457,
+      "old_lon": 16.09156,
+      "new_lat": 47.2945,
+      "new_lon": 16.0916,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10919",
+      "name": "Rechnitz",
+      "state": "Burgenland",
+      "old_lat": 47.304451,
+      "old_lon": 16.440068,
+      "new_lat": 47.3044,
+      "new_lon": 16.4401,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10922",
+      "name": "Schachendorf",
+      "state": "Burgenland",
+      "old_lat": 47.262364,
+      "old_lon": 16.424652,
+      "new_lat": 47.2624,
+      "new_lon": 16.4246,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10923",
+      "name": "Stadtschlaining",
+      "state": "Burgenland",
+      "old_lat": 47.321837,
+      "old_lon": 16.279058,
+      "new_lat": 47.3218,
+      "new_lon": 16.279,
+      "distance_km": 0.006
+    },
+    {
+      "id": "10926",
+      "name": "Weiden bei Rechnitz",
+      "state": "Burgenland",
+      "old_lat": 47.300649,
+      "old_lon": 16.345923,
+      "new_lat": 47.3006,
+      "new_lon": 16.3459,
+      "distance_km": 0.006
+    },
+    {
+      "id": "20428",
+      "name": "St. Margareten im Rosental",
+      "state": "Kärnten",
+      "old_lat": 46.540451,
+      "old_lon": 14.422588,
+      "new_lat": 46.5405,
+      "new_lon": 14.4226,
+      "distance_km": 0.006
+    },
+    {
+      "id": "20503",
+      "name": "Deutsch-Griffen",
+      "state": "Kärnten",
+      "old_lat": 46.857949,
+      "old_lon": 14.072013,
+      "new_lat": 46.8579,
+      "new_lon": 14.072,
+      "distance_km": 0.006
+    }
+  ]
+}
