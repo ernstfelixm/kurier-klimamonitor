@@ -551,40 +551,100 @@ def build_state(state_name, all_places):
 
 
 def write_build_status():
-    municipalities_path = PRECIP / "municipalities.json"
+    municipalities_path = (
+        DATA
+        / "precipitation"
+        / "municipalities.json"
+    )
+
     built_states = []
 
     for state, slug in STATE_SLUGS.items():
-        if (PRECIP / "climatology" / f"{slug}.json").exists():
+        if (
+            TEMP_GRID
+            / "climatology"
+            / f"{slug}.json"
+        ).exists():
             built_states.append(state)
 
     mapped_count = 0
     unique_grids = set()
+
     if municipalities_path.exists():
-        obj = load_json(municipalities_path)
-        mapped_count = obj.get("count", 0)
-        cols = obj.get("columns", [])
+        obj = load_json(
+            municipalities_path
+        )
+
+        mapped_count = obj.get(
+            "count",
+            0,
+        )
+
+        cols = obj.get(
+            "columns",
+            [],
+        )
+
         if "grid_id" in cols:
-            ix = cols.index("grid_id")
+            ix = cols.index(
+                "grid_id"
+            )
+
             unique_grids = {
-                row[ix] for row in obj.get("municipalities", []) if row[ix]
+                row[ix]
+                for row in obj.get(
+                    "municipalities",
+                    [],
+                )
+                if row[ix]
             }
 
     save_json(
-        PRECIP / "build_status.json",
+        TEMP_GRID / "build_status.json",
         {
-            "status": "ok" if len(built_states) == len(STATE_SLUGS) else "partial",
-            "source": "GeoSphere Austria SPARTACUS v3 daily",
-            "resource_id": "spartacus-v3-1d-1km",
-            "parameter": "RR",
-            "metric": "rolling_30d_precipitation",
-            "unit": "mm",
-            "rolling_window_days": 30,
-            "reference_periods": ["1961-1990", "1991-2020"],
-            "built_states": built_states,
-            "mapped_municipality_count": mapped_count,
-            "unique_grid_count": len(unique_grids),
-            "generated_at": date.today().isoformat(),
+            "status": (
+                "ok"
+                if len(built_states)
+                == len(STATE_SLUGS)
+                else "partial"
+            ),
+            "source": (
+                "GeoSphere Austria "
+                "SPARTACUS v3 daily"
+            ),
+            "resource_id": (
+                "spartacus-v3-1d-1km"
+            ),
+            "parameter": "TX",
+            "metric": (
+                "daily_max_temperature"
+            ),
+            "unit": "°C",
+            "window_radius_days": (
+                WINDOW_RADIUS_DAYS
+            ),
+            "window_days": (
+                WINDOW_RADIUS_DAYS * 2 + 1
+            ),
+            "minimum_window_values": (
+                MIN_WINDOW_VALUES
+            ),
+            "reference_periods": [
+                "1961-1990",
+                "1991-2020",
+            ],
+            "built_states": (
+                built_states
+            ),
+            "mapped_municipality_count": (
+                mapped_count
+            ),
+            "unique_grid_count": (
+                len(unique_grids)
+            ),
+            "generated_at": (
+                date.today().isoformat()
+            ),
         },
     )
 
@@ -619,7 +679,7 @@ def main():
 
     print()
     print("Produktions-Build abgeschlossen.")
-    print("Siehe docs/data/precipitation/build_status.json")
+    print("Siehe docs/data/temperature_grid/build_status.json")
 
 
 if __name__ == "__main__":
