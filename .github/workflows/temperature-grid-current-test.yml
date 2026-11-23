@@ -33,8 +33,17 @@ jobs:
           ls -lh docs/data/temperature_grid/current
           du -sh docs/data/temperature_grid/current
 
-      - name: Upload temperature grid current data
-        uses: actions/upload-artifact@v4
-        with:
-          name: temperature-grid-current
-          path: docs/data/temperature_grid/current/
+      - name: Commit temperature grid current data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add docs/data/temperature_grid/current
+
+          if git diff --cached --quiet; then
+            echo "No temperature grid current changes."
+          else
+            git commit -m "Update temperature grid current data"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
