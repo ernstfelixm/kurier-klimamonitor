@@ -1,0 +1,28 @@
+name: Temperature Grid Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-wien:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Build Vienna temperature grid climatology
+        run: python scripts/build_temperature_grid.py --state Wien
+
+      - name: Show generated files
+        run: |
+          ls -lh docs/data/temperature_grid
+          ls -lh docs/data/temperature_grid/climatology
