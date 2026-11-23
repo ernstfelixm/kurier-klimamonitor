@@ -288,23 +288,52 @@ def climatology(rolling):
 
 
 def fetch_history_for_grids(grid_records):
-    coords = [(g["lat"], g["lon"]) for g in grid_records]
-    by_grid = {g["grid_id"]: {} for g in grid_records}
+    by_grid = {
+        g["grid_id"]: {}
+        for g in grid_records
+    }
 
-    for batch_no, batch in enumerate(chunks(grid_records, HISTORY_COORD_BATCH), start=1):
+    for batch_no, batch in enumerate(
+        chunks(grid_records, HISTORY_COORD_BATCH),
+        start=1,
+    ):
         print(
             f"Historie Batch {batch_no}: {len(batch)} Rasterpunkte "
             f"({HISTORY_START} bis {HISTORY_END})"
         )
-        requested = [(g["lat"], g["lon"]) for g in batch]
-        rows = parse_rows(request_csv(requested, HISTORY_START, HISTORY_END))
 
-        for day, lat, lon, rr in rows:
-            glat, glon = nearest_coord(lat, lon, requested)
-            gid = grid_id(glat, glon)
+        requested = [
+            (
+                g["grid_lat"],
+                g["grid_lon"],
+            )
+            for g in batch
+        ]
+
+        rows = parse_rows(
+            request_csv(
+                requested,
+                HISTORY_START,
+                HISTORY_END,
+            )
+        )
+
+        for day, lat, lon, tx in rows:
+            glat, glon = nearest_coord(
+                lat,
+                lon,
+                requested,
+            )
+
+            gid = grid_id(
+                glat,
+                glon,
+            )
+
             if gid not in by_grid:
                 continue
-            by_grid[gid][day] = rr
+
+            by_grid[gid][day] = tx
 
     return by_grid
 
