@@ -2,6 +2,12 @@ name: Temperature Grid Current Test
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/temperature-grid
+    paths:
+      - "scripts/update_temperature_grid.py"
+      - ".github/workflows/temperature-grid-current-test.yml"
 
 jobs:
   update-current:
