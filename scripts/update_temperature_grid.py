@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import date, timedelta, datetime, timezon
+from datetime import date, timedelta, datetime, timezone
 from zoneinfo import ZoneInfo
 import csv
 import io
