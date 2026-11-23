@@ -2,44 +2,75 @@
 
 Daten-Backend für den interaktiven Klima-Monitor auf kurier.at.
 
-## Öffentliche URLs nach Aktivierung von GitHub Pages
+## Öffentliche Daten
 
-- `https://ernstfelixm.github.io/kurier-klimamonitor/data/stations.json`
-- `https://ernstfelixm.github.io/kurier-klimamonitor/data/status.json`
-- `https://ernstfelixm.github.io/kurier-klimamonitor/data/climatology/wien.json`
-- `https://ernstfelixm.github.io/kurier-klimamonitor/data/current/wien.json`
+Temperatur:
 
-Die Dateien sind nach Bundesland aufgeteilt, damit Shorthand nur die benötigten Daten lädt.
+- `https://ernstfelixm.github.io/kurier-klimamonitor/data/temperature_grid/current/wien.json`
+- `https://ernstfelixm.github.io/kurier-klimamonitor/data/temperature_grid/climatology/wien.json`
+- `https://ernstfelixm.github.io/kurier-klimamonitor/data/forecast.json`
+
+Gemeindenzuordnung:
+
+- `https://ernstfelixm.github.io/kurier-klimamonitor/data/precipitation/municipalities.json`
+
+Die Rasterdaten sind nach Bundesland aufgeteilt, damit Shorthand nur die jeweils benötigten Daten lädt.
 
 ## Methodik Temperatur
 
-- Messgröße: tägliche Höchsttemperatur (`tlmax`)
-- historische Referenzperioden: 1961–1990 und 1991–2020
+- Messgröße: tägliche Höchsttemperatur
+- historische Daten: GeoSphere Austria SPARTACUS v3, 1-km-Raster
+- Parameter historische Tageshöchsttemperatur: `TX`
+- Referenzperioden: 1961–1990 und 1991–2020
 - Normalbereich: 20. bis 80. Perzentil
 - Median: 50. Perzentil
-- saisonales Vergleichsfenster: jeweiliger Kalendertag ± 7 Tage
-- Quelle: GeoSphere Austria, Datensatz `klima-v2-1d`
+- saisonales Vergleichsfenster: jeweiliger Kalendertag ± 3 Tage
+- aktuelle abgeschlossene Tage: SPARTACUS v3
+- heutige Prognose: GeoSphere NWP v2, 1-km-Raster
+- Prognosewert: Maximum der stündlichen 2-m-Temperatur des aktuellen Tages
+
+Alle Temperaturdaten werden über dieselbe gemeindebasierte Rasterzuordnung verknüpft.
 
 ## Automatische Aktualisierung
 
-`.github/workflows/update.yml` läuft einmal täglich um 09:15 UTC und kann zusätzlich unter **Actions → Update GeoSphere temperature data → Run workflow** manuell gestartet werden.
+`.github/workflows/update.yml` aktualisiert die aktuellen SPARTACUS-Temperaturdaten.
 
-Das Skript lädt jeweils die letzten 10 Tage erneut. Dadurch werden auch verspätete oder nachträglich korrigierte GeoSphere-Werte übernommen. Es ändert nur `docs/data/current/*.json` und `docs/data/status.json`.
+Das Skript lädt bei regulären Aktualisierungen die letzten 14 Tage erneut. Dadurch können verspätete oder nachträglich korrigierte GeoSphere-Werte übernommen werden.
 
-## GitHub Pages aktivieren
+Die aktuellen Temperaturdaten liegen unter:
+
+`docs/data/temperature_grid/current/<bundesland>.json`
+
+Die historische Klimatologie liegt unter:
+
+`docs/data/temperature_grid/climatology/<bundesland>.json`
+
+Die Temperaturprognose wird über `.github/workflows/forecast.yml` erzeugt und liegt unter:
+
+`docs/data/forecast.json`
+
+## GitHub Pages
 
 Repository → **Settings → Pages** → **Deploy from a branch** → Branch `main` → Ordner `/docs` → Save.
 
-Danach ist die Datenseite unter `https://ernstfelixm.github.io/kurier-klimamonitor/` erreichbar.
+Danach ist die Datenseite unter
 
-## Datenstruktur
+`https://ernstfelixm.github.io/kurier-klimamonitor/`
 
-`docs/data/stations.json` enthält Stationen, Koordinaten, Höhe und Abdeckungswerte.
+erreichbar.
 
-`docs/data/climatology/<bundesland>.json` enthält für jede Station und jeden Kalendertag p20/Median/p80 für beide Referenzperioden.
+## Weitere Datensätze
 
-`docs/data/current/<bundesland>.json` enthält die Tageshöchsttemperaturen des laufenden Jahres.
+Niederschlag:
+
+`docs/data/precipitation/`
+
+Schnee:
+
+`docs/data/snow/`
 
 ## Quellen
 
-GeoSphere Austria Dataset API: https://dataset.api.hub.geosphere.at/v1/
+GeoSphere Austria Dataset API:
+
+`https://dataset.api.hub.geosphere.at/v1/`
