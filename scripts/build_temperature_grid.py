@@ -450,53 +450,85 @@ def merge_municipality_mapping(mapped_state):
 
 def build_state(state_name, all_places):
     state_slug = STATE_SLUGS[state_name]
-    places = [p for p in all_places if p["state"] == state_name]
+    places = [
+        p for p in all_places
+        if p["state"] == state_name
+    ]
 
     print()
     print("=" * 72)
-    print(f"Baue Niederschlags-Klimatologie für {state_name}: {len(places)} Gemeinden")
+    print(
+        f"Baue Temperatur-Klimatologie für {state_name}: "
+        f"{len(places)} Gemeinden"
+    )
     print("=" * 72)
 
-    mapped = map_municipalities(places)
-    merge_municipality_mapping(mapped)
-
     unique = {}
-    for p in mapped:
+
+    for p in places:
         unique[p["grid_id"]] = {
             "grid_id": p["grid_id"],
-            "lat": p["grid_lat"],
-            "lon": p["grid_lon"],
+            "grid_lat": p["grid_lat"],
+            "grid_lon": p["grid_lon"],
         }
 
-    grids = [unique[k] for k in sorted(unique)]
-    print(f"{state_name}: {len(grids)} eindeutige SPARTACUS-Rasterpunkte")
+    grids = [
+        unique[k]
+        for k in sorted(unique)
+    ]
+
+    print(
+        f"{state_name}: "
+        f"{len(grids)} eindeutige SPARTACUS-Rasterpunkte"
+    )
 
     history = fetch_history_for_grids(grids)
 
     compact_grids = {}
-    for i, grid in enumerate(grids, start=1):
+
+    for i, grid in enumerate(
+        grids,
+        start=1,
+    ):
         gid = grid["grid_id"]
-        rolling = rolling_30(history[gid])
-        clim = climatology(rolling)
+
+        clim = climatology(
+            history[gid]
+        )
 
         rows = []
-        for md in sorted(clim):
+
+        for md in CALENDAR_DAYS:
             values = clim[md]
-            rows.append([md] + values)
+            rows.append(
+                [md] + values
+            )
 
         compact_grids[gid] = rows
 
         if i % 25 == 0 or i == len(grids):
-            print(f"{state_name}: Klimatologie {i}/{len(grids)}")
+            print(
+                f"{state_name}: "
+                f"Klimatologie {i}/{len(grids)}"
+            )
 
     save_json(
-        PRECIP / "climatology" / f"{state_slug}.json",
+        TEMP_GRID
+        / "climatology"
+        / f"{state_slug}.json",
         {
-            "metric": "rolling_30d_precipitation",
-            "parameter": "RR",
-            "unit": "mm",
-            "rolling_window_days": 30,
-            "reference_periods": ["1961-1990", "1991-2020"],
+            "metric": "daily_max_temperature",
+            "parameter": "TX",
+            "unit": "°C",
+            "window_radius_days": WINDOW_RADIUS_DAYS,
+            "window_days": (
+                WINDOW_RADIUS_DAYS * 2 + 1
+            ),
+            "minimum_window_values": MIN_WINDOW_VALUES,
+            "reference_periods": [
+                "1961-1990",
+                "1991-2020",
+            ],
             "columns": [
                 "day",
                 "p20_1961_1990",
@@ -513,7 +545,9 @@ def build_state(state_name, all_places):
         },
     )
 
-    print(f"{state_name}: fertig.")
+    print(
+        f"{state_name}: fertig."
+    )
 
 
 def write_build_status():
