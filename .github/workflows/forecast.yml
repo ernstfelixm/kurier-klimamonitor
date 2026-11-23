@@ -51,8 +51,8 @@ jobs:
           else
             git commit -m "Update GeoSphere temperature forecast and map"
 
-            git pull --rebase origin main
-            git push origin main
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 
       - name: Mark workflow as failed when forecast update failed

@@ -41,54 +41,49 @@ def now_vienna():
     return datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Vienna"))
 
 
-def used_station_ids():
-    obj = load_json(DATA / "municipalities.json")
-    columns = obj["columns"]
-    station_index = columns.index("station_id")
+def used_grids():
+    obj = load_json(
+        DATA
+        / "precipitation"
+        / "municipalities.json"
+    )
 
-    return {
-        int(row[station_index])
-        for row in obj["municipalities"]
-        if row[station_index] not in (None, "")
+    columns = obj["columns"]
+    ix = {
+        name: i
+        for i, name in enumerate(columns)
     }
 
+    unique = {}
 
-def used_stations():
-    stations = load_json(DATA / "stations.json")["stations"]
-    wanted = used_station_ids()
-    by_id = {int(s["id"]): s for s in stations}
+    for row in obj["municipalities"]:
+        gid = row[ix["grid_id"]]
 
-    missing = sorted(wanted - set(by_id))
-    if missing:
-        raise RuntimeError(
-            f"{len(missing)} station IDs from municipalities.json are missing in stations.json"
-        )
+        if not gid:
+            continue
 
-    out = []
-    for sid in sorted(wanted):
-        station = by_id[sid]
-        lat = station.get("lat")
-        lon = station.get("lon")
+        unique[gid] = {
+            "id": gid,
+            "lat": float(
+                row[ix["grid_lat"]]
+            ),
+            "lon": float(
+                row[ix["grid_lon"]]
+            ),
+        }
 
-        if lat is None or lon is None:
-            raise RuntimeError(f"Station {sid} has no coordinates")
-
-        out.append(
-            {
-                "id": sid,
-                "name": station.get("name"),
-                "state": station.get("state"),
-                "state_slug": station.get("state_slug"),
-                "lat": float(lat),
-                "lon": float(lon),
-            }
-        )
-
-    return out
+    return [
+        unique[gid]
+        for gid in sorted(unique)
+    ]
 
 
-def existing_complete_forecast_for_today(today, expected_station_count):
+def existing_complete_forecast_for_today(
+    today,
+    expected_grid_count,
+):
     path = DATA / "forecast.json"
+
     if not path.exists():
         return None
 
@@ -100,24 +95,39 @@ def existing_complete_forecast_for_today(today, expected_station_count):
     if (
         obj.get("status") == "ok"
         and obj.get("forecast_date") == today.isoformat()
-        and int(obj.get("station_count", 0)) >= expected_station_count
-        and int(obj.get("expected_station_count", 0)) == expected_station_count
+        and int(obj.get("grid_count", 0))
+        >= expected_grid_count
+        and int(obj.get("expected_grid_count", 0))
+        == expected_grid_count
     ):
         return obj
 
     return None
 
 
-def fetch_forecast_batch(stations):
-    params = [("parameters", PARAMETER), ("output_format", "geojson")]
-    params.extend(("lat_lon", f'{station["lat"]},{station["lon"]}') for station in stations)
+def fetch_forecast_batch(grids):
+    params = [
+        ("parameters", PARAMETER),
+        ("output_format", "geojson"),
+    ]
+
+    params.extend(
+        (
+            "lat_lon",
+            f'{grid["lat"]},{grid["lon"]}',
+        )
+        for grid in grids
+    )
 
     for attempt in range(REQUEST_ATTEMPTS):
         try:
             response = requests.get(BASE, params=params, timeout=TIMEOUT)
             response.raise_for_status()
             payload = response.json()
-            validate_forecast_batch(payload, len(stations))
+            validate_forecast_batch(
+                payload,
+                len(grids),
+            )
             return payload
         except requests.HTTPError as exc:
             status = exc.response.status_code
@@ -141,7 +151,7 @@ def fetch_forecast_batch(stations):
     raise RuntimeError(f"GeoSphere forecast request failed: {error}")
 
 
-def validate_forecast_batch(payload, station_count):
+def validate_forecast_batch(payload, expected_count):
     if not isinstance(payload, dict) or payload.get("type") != "FeatureCollection":
         raise ValueError("Expected a GeoSphere forecast FeatureCollection")
 
@@ -150,9 +160,13 @@ def validate_forecast_batch(payload, station_count):
         raise ValueError("GeoSphere forecast response has no timestamps")
 
     features = payload.get("features")
-    if not isinstance(features, list) or len(features) != station_count:
-        # An omitted feature would shift the positional mapping for later stations.
-        raise ValueError(f"Expected {station_count} GeoSphere features, one per requested location")
+    if not isinstance(features, list) or len(features) != expected_count:
+        # An omitted feature would shift the positional mapping
+        # for later requested grid points.
+        raise ValueError(
+            f"Expected {expected_count} GeoSphere features, "
+            "one per requested location"
+        )
 
 
 def parse_number(raw):
@@ -187,49 +201,89 @@ def parse_time(raw):
     return dt
 
 
-def daily_max_for_station(feature, station, timestamp_count, today_indices):
+def daily_max_for_grid(
+    feature,
+    grid,
+    timestamp_count,
+    today_indices,
+):
     try:
         lon, lat = feature["geometry"]["coordinates"]
-        temperatures = feature["properties"]["parameters"][PARAMETER]["data"]
+        temperatures = (
+            feature["properties"]
+            ["parameters"]
+            [PARAMETER]
+            ["data"]
+        )
     except (KeyError, TypeError, ValueError) as exc:
-        raise ValueError("invalid GeoSphere location or temperature series") from exc
+        raise ValueError(
+            "invalid GeoSphere location or temperature series"
+        ) from exc
 
-    # The API returns the nearest model grid point in request order. Adjacent
-    # requests can legitimately share a point. Allow up to one grid step per axis.
-    lon, lat = parse_number(lon), parse_number(lat)
+    lon = parse_number(lon)
+    lat = parse_number(lat)
+
     if (
-        lon is None or lat is None
-        or abs(lon - station["lon"]) > 0.0135
-        or abs(lat - station["lat"]) > 0.009
+        lon is None
+        or lat is None
+        or abs(lon - grid["lon"]) > 0.0135
+        or abs(lat - grid["lat"]) > 0.009
     ):
-        raise ValueError("GeoSphere grid point does not match requested location")
+        raise ValueError(
+            "GeoSphere grid point does not match requested location"
+        )
 
-    if not isinstance(temperatures, list) or len(temperatures) != timestamp_count:
-        raise ValueError("GeoSphere temperature series does not match timestamps")
+    if (
+        not isinstance(temperatures, list)
+        or len(temperatures) != timestamp_count
+    ):
+        raise ValueError(
+            "GeoSphere temperature series does not match timestamps"
+        )
 
-    values = [parse_number(temperatures[index]) for index in today_indices]
-    valid_values = [value for value in values if value is not None]
+    values = [
+        parse_number(temperatures[index])
+        for index in today_indices
+    ]
+
+    valid_values = [
+        value
+        for value in values
+        if value is not None
+    ]
+
     if not valid_values:
-        raise ValueError("no forecast values for today's local date")
+        raise ValueError(
+            "no forecast values for today's local date"
+        )
 
-    return round(max(valid_values), 1)
+    return round(
+        max(valid_values),
+        1,
+    )
 
 
-def collect_forecasts(stations, today):
+def collect_forecasts(grids, today):
     results = {}
     errors = []
     vienna = ZoneInfo("Europe/Vienna")
 
-    for start in range(0, len(stations), BATCH_SIZE):
-        batch = stations[start:start + BATCH_SIZE]
+    for start in range(0, len(grids), BATCH_SIZE):
+        batch = grids[start:start + BATCH_SIZE]
         if start:
             time.sleep(REQUEST_PAUSE_SECONDS)
 
         try:
             payload = fetch_forecast_batch(batch)
         except RuntimeError as exc:
-            errors.extend({"station_id": station["id"], "error": str(exc)[:300]} for station in batch)
-            print(f"Stations {start + 1}–{start + len(batch)}: {exc}")
+            errors.extend(
+                {
+                    "grid_id": grid["id"],
+                    "error": str(exc)[:300],
+                }
+                for grid in batch
+            )
+            print(f"Grids {start + 1}–{start + len(batch)}: {exc}")
             continue
 
         timestamps = payload["timestamps"]
@@ -240,16 +294,27 @@ def collect_forecasts(stations, today):
                 today_indices.append(index)
 
         successful = 0
-        for station, feature in zip(batch, payload["features"]):
+        for grid, feature in zip(
+            batch,
+            payload["features"],
+        ):
             try:
-                results[str(station["id"])] = daily_max_for_station(
-                    feature, station, len(timestamps), today_indices
+                results[str(grid["id"])] = daily_max_for_grid(
+                    feature,
+                    grid,
+                    len(timestamps),
+                    today_indices,
                 )
                 successful += 1
             except ValueError as exc:
-                errors.append({"station_id": station["id"], "error": str(exc)})
+                errors.append(
+                    {    
+                        "grid_id": grid["id"],
+                        "error": str(exc),
+                    }
+                )
 
-        print(f"Stations {start + 1}–{start + len(batch)}: {successful}/{len(batch)} forecasts")
+        print(f"Grids {start + 1}–{start + len(batch)}: {successful}/{len(batch)} forecasts")
 
     return results, errors
 
@@ -271,56 +336,151 @@ def ensure_austria_states_geojson():
     print(f"Austria state geometry written: {path}")
 
 
-def build_map_today(forecast_obj, stations, local_now):
+def build_map_today(
+    forecast_obj,
+    local_now,
+):
     """Build the compact data file used by the Shorthand Austria map."""
-    if forecast_obj.get("forecast_date") != local_now.date().isoformat():
-        raise RuntimeError("Cannot build map_today.json from a forecast for another date")
+
+    if (
+        forecast_obj.get("forecast_date")
+        != local_now.date().isoformat()
+    ):
+        raise RuntimeError(
+            "Cannot build map_today.json "
+            "from a forecast for another date"
+        )
+
+    mapping = load_json(
+        DATA
+        / "precipitation"
+        / "municipalities.json"
+    )
+
+    columns = mapping["columns"]
+
+    ix = {
+        name: i
+        for i, name in enumerate(columns)
+    }
 
     day_key = local_now.strftime("%m-%d")
-    forecast_values = forecast_obj.get("stations", {})
+
+    forecast_values = forecast_obj.get(
+        "grids",
+        {},
+    )
+
     climate_cache = {}
     map_rows = []
     window_days = None
 
-    for station in stations:
-        sid = str(station["id"])
-        forecast = parse_number(forecast_values.get(sid))
+    for municipality in mapping["municipalities"]:
+        municipality_id = str(
+            municipality[ix["id"]]
+        )
+
+        name = municipality[ix["name"]]
+        state = municipality[ix["state"]]
+        state_slug = municipality[ix["state_slug"]]
+
+        grid_id = municipality[ix["grid_id"]]
+        grid_lat = float(
+            municipality[ix["grid_lat"]]
+        )
+        grid_lon = float(
+            municipality[ix["grid_lon"]]
+        )
+
+        forecast = parse_number(
+            forecast_values.get(grid_id)
+        )
+
         if forecast is None:
             continue
 
-        state_slug = station.get("state_slug")
-        if not state_slug:
-            continue
-
         if state_slug not in climate_cache:
-            climate = load_json(DATA / "climatology" / f"{state_slug}.json")
-            columns = climate.get("columns", [])
-            climate_cache[state_slug] = (climate, columns)
-            if window_days is None:
-                window_days = climate.get("window_days")
+            climate = load_json(
+                DATA
+                / "temperature_grid"
+                / "climatology"
+                / f"{state_slug}.json"
+            )
 
-        climate, columns = climate_cache[state_slug]
-        series = climate.get("stations", {}).get(sid)
+            climate_columns = climate.get(
+                "columns",
+                [],
+            )
+
+            try:
+                p20_i = climate_columns.index(
+                    "p20_1991_2020"
+                )
+                median_i = climate_columns.index(
+                    "median_1991_2020"
+                )
+                p80_i = climate_columns.index(
+                    "p80_1991_2020"
+                )
+            except ValueError as exc:
+                raise RuntimeError(
+                    "Expected 1991-2020 climatology "
+                    f"columns missing in {state_slug}.json"
+                ) from exc
+
+            climate_cache[state_slug] = {
+                "climate": climate,
+                "p20_i": p20_i,
+                "median_i": median_i,
+                "p80_i": p80_i,
+            }
+
+            if window_days is None:
+                window_days = climate.get(
+                    "window_days"
+                )
+
+        cached = climate_cache[state_slug]
+        climate = cached["climate"]
+
+        series = climate.get(
+            "grids",
+            {},
+        ).get(grid_id)
+
         if not series:
             continue
 
-        try:
-            p20_i = columns.index("p20_1991_2020")
-            median_i = columns.index("median_1991_2020")
-            p80_i = columns.index("p80_1991_2020")
-        except ValueError as exc:
-            raise RuntimeError(
-                f"Expected 1991-2020 climatology columns missing in {state_slug}.json"
-            ) from exc
+        row = next(
+            (
+                item
+                for item in series
+                if item
+                and item[0] == day_key
+            ),
+            None,
+        )
 
-        row = next((item for item in series if item and item[0] == day_key), None)
         if row is None:
             continue
 
-        p20 = parse_number(row[p20_i])
-        median = parse_number(row[median_i])
-        p80 = parse_number(row[p80_i])
-        if p20 is None or median is None or p80 is None:
+        p20 = parse_number(
+            row[cached["p20_i"]]
+        )
+
+        median = parse_number(
+            row[cached["median_i"]]
+        )
+
+        p80 = parse_number(
+            row[cached["p80_i"]]
+        )
+
+        if (
+            p20 is None
+            or median is None
+            or p80 is None
+        ):
             continue
 
         if forecast > p80:
@@ -332,111 +492,201 @@ def build_map_today(forecast_obj, stations, local_now):
 
         map_rows.append(
             {
-                "id": station["id"],
-                "name": station.get("name"),
-                "state": station.get("state"),
-                "lat": round(station["lat"], 5),
-                "lon": round(station["lon"], 5),
-                "forecast": round(forecast, 1),
-                "p20": round(p20, 2),
-                "median": round(median, 2),
-                "p80": round(p80, 2),
-                "anomaly": round(forecast - median, 2),
+                "id": municipality_id,
+                "name": name,
+                "state": state,
+                "grid_id": grid_id,
+                "lat": round(
+                    grid_lat,
+                    5,
+                ),
+                "lon": round(
+                    grid_lon,
+                    5,
+                ),
+                "forecast": round(
+                    forecast,
+                    1,
+                ),
+                "p20": round(
+                    p20,
+                    2,
+                ),
+                "median": round(
+                    median,
+                    2,
+                ),
+                "p80": round(
+                    p80,
+                    2,
+                ),
+                "anomaly": round(
+                    forecast - median,
+                    2,
+                ),
                 "category": category,
             }
         )
 
     counts = {
-        "warm": sum(1 for item in map_rows if item["category"] == "warm"),
-        "normal": sum(1 for item in map_rows if item["category"] == "normal"),
-        "cold": sum(1 for item in map_rows if item["category"] == "cold"),
+        "warm": sum(
+            1
+            for item in map_rows
+            if item["category"] == "warm"
+        ),
+        "normal": sum(
+            1
+            for item in map_rows
+            if item["category"] == "normal"
+        ),
+        "cold": sum(
+            1
+            for item in map_rows
+            if item["category"] == "cold"
+        ),
     }
 
     output = {
-        "status": "ok" if map_rows else "error",
+        "status": (
+            "ok"
+            if map_rows
+            else "error"
+        ),
         "date": local_now.date().isoformat(),
-        "generated_at": forecast_obj.get("generated_at") or local_now.isoformat(timespec="seconds"),
+        "generated_at": (
+            forecast_obj.get("generated_at")
+            or local_now.isoformat(
+                timespec="seconds"
+            )
+        ),
         "reference_period": REFERENCE_PERIOD,
         "window_days": window_days,
-        "station_count": len(map_rows),
-        "expected_station_count": len(stations),
+        "municipality_count": len(map_rows),
+        "expected_municipality_count": mapping.get(
+            "count",
+            len(mapping["municipalities"]),
+        ),
         "category_counts": counts,
         "categories": {
             "warm": "ungewöhnlich warm",
             "normal": "normal",
             "cold": "ungewöhnlich kalt",
         },
+
+        # Temporarily keep this key for compatibility
+        # with the existing map integration.
         "stations": map_rows,
     }
 
-    save_json(DATA / "map_today.json", output)
+    save_json(
+        DATA / "map_today.json",
+        output,
+    )
+
     print(
         "Map data written: "
-        f"{len(map_rows)}/{len(stations)} stations; "
-        f"warm={counts['warm']}, normal={counts['normal']}, cold={counts['cold']}"
+        f"{len(map_rows)}/"
+        f"{len(mapping['municipalities'])} municipalities; "
+        f"warm={counts['warm']}, "
+        f"normal={counts['normal']}, "
+        f"cold={counts['cold']}"
     )
 
 
 def run():
     local_now = now_vienna()
     today = local_now.date()
-    stations = used_stations()
+    grids = used_grids()
 
-    # Static geometry is needed only once. If already present, this is a no-op.
+    # Static geometry is needed only once.
     ensure_austria_states_geojson()
 
-    existing = existing_complete_forecast_for_today(today, len(stations))
+    existing = existing_complete_forecast_for_today(
+        today,
+        len(grids),
+    )
+
     if existing is not None:
         print(
-            f"Skipping forecast fetch: complete forecast for {today.isoformat()} "
-            f"already exists for all {len(stations)} stations."
+            f"Skipping forecast fetch: complete forecast for "
+            f"{today.isoformat()} already exists for all "
+            f"{len(grids)} grids."
         )
-        # Still rebuild map_today.json. This is useful directly after installing
-        # the map feature, even when today's forecast already exists.
-        build_map_today(existing, stations, local_now)
+
+        build_map_today(
+            existing,
+            local_now,
+        )
         return
 
-    if local_now.timetz().replace(tzinfo=None) < EARLIEST_LOCAL_FETCH_TIME:
+    if (
+        local_now.timetz().replace(tzinfo=None)
+        < EARLIEST_LOCAL_FETCH_TIME
+    ):
         print(
-            f"Skipping forecast fetch: local time {local_now.strftime('%H:%M')} is before "
-            f"{EARLIEST_LOCAL_FETCH_TIME.strftime('%H:%M')} Europe/Vienna."
+            f"Skipping forecast fetch: local time "
+            f"{local_now.strftime('%H:%M')} is before "
+            f"{EARLIEST_LOCAL_FETCH_TIME.strftime('%H:%M')} "
+            f"Europe/Vienna."
         )
         return
 
-    results, errors = collect_forecasts(stations, today)
-    success_rate = len(results) / len(stations) if stations else 0
+    results, errors = collect_forecasts(
+        grids,
+        today,
+    )
+
+    success_rate = (
+        len(results) / len(grids)
+        if grids
+        else 0
+    )
 
     output = {
-        "status": "ok" if success_rate >= MIN_SUCCESS_RATE else "error",
+        "status": (
+            "ok"
+            if success_rate >= MIN_SUCCESS_RATE
+            else "error"
+        ),
         "forecast_date": today.isoformat(),
-        "generated_at": local_now.isoformat(timespec="seconds"),
+        "generated_at": local_now.isoformat(
+            timespec="seconds"
+        ),
         "metric": "tlmax_forecast",
         "parameter": PARAMETER,
         "unit": "°C",
         "model": "GeoSphere Austria NWP-v2 1 km",
-        "station_count": len(results),
-        "expected_station_count": len(stations),
-        "stations": results,
+        "grid_count": len(results),
+        "expected_grid_count": len(grids),
+        "grids": results,
     }
 
     if errors:
         output["errors"] = errors[:25]
         output["error_count"] = len(errors)
 
-    save_json(DATA / "forecast.json", output)
+    save_json(
+        DATA / "forecast.json",
+        output,
+    )
 
     print(
-        f'Forecast written: {len(results)}/{len(stations)} stations '
-        f'({success_rate:.1%}), date {today.isoformat()}'
+        f"Forecast written: "
+        f"{len(results)}/{len(grids)} grids "
+        f"({success_rate:.1%}), "
+        f"date {today.isoformat()}"
     )
 
     if output["status"] != "ok":
         raise RuntimeError(
-            f"Forecast coverage too low: {len(results)}/{len(stations)} stations"
+            f"Forecast coverage too low: "
+            f"{len(results)}/{len(grids)} grids"
         )
 
-    build_map_today(output, stations, local_now)
-
+    build_map_today(
+        output,
+        local_now,
+    )
 
 if __name__ == "__main__":
     run()
