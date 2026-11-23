@@ -237,41 +237,75 @@ def parse_time(raw):
     return dt
 
 
-def daily_max_for_station(feature, station, timestamp_count, today_indices):
+def daily_max_for_grid(
+    feature,
+    grid,
+    timestamp_count,
+    today_indices,
+):
     try:
         lon, lat = feature["geometry"]["coordinates"]
-        temperatures = feature["properties"]["parameters"][PARAMETER]["data"]
+        temperatures = (
+            feature["properties"]
+            ["parameters"]
+            [PARAMETER]
+            ["data"]
+        )
     except (KeyError, TypeError, ValueError) as exc:
-        raise ValueError("invalid GeoSphere location or temperature series") from exc
+        raise ValueError(
+            "invalid GeoSphere location or temperature series"
+        ) from exc
 
-    # The API returns the nearest model grid point in request order. Adjacent
-    # requests can legitimately share a point. Allow up to one grid step per axis.
-    lon, lat = parse_number(lon), parse_number(lat)
+    lon = parse_number(lon)
+    lat = parse_number(lat)
+
     if (
-        lon is None or lat is None
-        or abs(lon - station["lon"]) > 0.0135
-        or abs(lat - station["lat"]) > 0.009
+        lon is None
+        or lat is None
+        or abs(lon - grid["lon"]) > 0.0135
+        or abs(lat - grid["lat"]) > 0.009
     ):
-        raise ValueError("GeoSphere grid point does not match requested location")
+        raise ValueError(
+            "GeoSphere grid point does not match requested location"
+        )
 
-    if not isinstance(temperatures, list) or len(temperatures) != timestamp_count:
-        raise ValueError("GeoSphere temperature series does not match timestamps")
+    if (
+        not isinstance(temperatures, list)
+        or len(temperatures) != timestamp_count
+    ):
+        raise ValueError(
+            "GeoSphere temperature series does not match timestamps"
+        )
 
-    values = [parse_number(temperatures[index]) for index in today_indices]
-    valid_values = [value for value in values if value is not None]
+    values = [
+        parse_number(temperatures[index])
+        for index in today_indices
+    ]
+
+    valid_values = [
+        value
+        for value in values
+        if value is not None
+    ]
+
     if not valid_values:
-        raise ValueError("no forecast values for today's local date")
+        raise ValueError(
+            "no forecast values for today's local date"
+        )
 
-    return round(max(valid_values), 1)
+    return round(
+        max(valid_values),
+        1,
+    )
 
 
-def collect_forecasts(stations, today):
+def collect_forecasts(grids, today):
     results = {}
     errors = []
     vienna = ZoneInfo("Europe/Vienna")
 
-    for start in range(0, len(stations), BATCH_SIZE):
-        batch = stations[start:start + BATCH_SIZE]
+    for start in range(0, len(grids), BATCH_SIZE):
+        batch = grids[start:start + BATCH_SIZE]
         if start:
             time.sleep(REQUEST_PAUSE_SECONDS)
 
@@ -290,14 +324,25 @@ def collect_forecasts(stations, today):
                 today_indices.append(index)
 
         successful = 0
-        for station, feature in zip(batch, payload["features"]):
+        for grid, feature in zip(
+            batch,
+            payload["features"],
+        ):
             try:
-                results[str(station["id"])] = daily_max_for_station(
-                    feature, station, len(timestamps), today_indices
-                )
-                successful += 1
-            except ValueError as exc:
-                errors.append({"station_id": station["id"], "error": str(exc)})
+                results[str(grid["id"])] = daily_max_for_grid(
+                    feature,
+                grid,
+                len(timestamps),
+                today_indices,
+            )
+            successful += 1
+        except ValueError as exc:
+            errors.append(
+                {
+                    "grid_id": grid["id"],
+                    "error": str(exc),
+                }
+            )
 
         print(f"Stations {start + 1}–{start + len(batch)}: {successful}/{len(batch)} forecasts")
 
