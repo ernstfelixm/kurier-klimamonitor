@@ -388,66 +388,6 @@ def fetch_history_for_grids(grid_records):
     return by_grid
 
 
-def merge_municipality_mapping(mapped_state):
-    path = PRECIP / "municipalities.json"
-    existing = []
-
-    if path.exists():
-        obj = load_json(path)
-        cols = obj.get("columns", [])
-        if cols:
-            ix = {name: i for i, name in enumerate(cols)}
-            for row in obj.get("municipalities", []):
-                existing.append(
-                    {
-                        "id": str(row[ix["id"]]),
-                        "name": row[ix["name"]],
-                        "state": row[ix["state"]],
-                        "state_slug": row[ix["state_slug"]],
-                        "grid_id": row[ix["grid_id"]],
-                        "grid_lat": row[ix["grid_lat"]],
-                        "grid_lon": row[ix["grid_lon"]],
-                    }
-                )
-
-    state_slug = mapped_state[0]["state_slug"]
-    existing = [x for x in existing if x["state_slug"] != state_slug]
-
-    existing.extend(
-        {
-            "id": p["id"],
-            "name": p["name"],
-            "state": p["state"],
-            "state_slug": p["state_slug"],
-            "grid_id": p["grid_id"],
-            "grid_lat": round(p["grid_lat"], 6),
-            "grid_lon": round(p["grid_lon"], 6),
-        }
-        for p in mapped_state
-    )
-
-    existing.sort(key=lambda x: (x["state"], x["name"], x["id"]))
-
-    cols = [
-        "id",
-        "name",
-        "state",
-        "state_slug",
-        "grid_id",
-        "grid_lat",
-        "grid_lon",
-    ]
-    save_json(
-        path,
-        {
-            "version": date.today().isoformat(),
-            "count": len(existing),
-            "columns": cols,
-            "municipalities": [[x[c] for c in cols] for x in existing],
-        },
-    )
-
-
 def build_state(state_name, all_places):
     state_slug = STATE_SLUGS[state_name]
     places = [
