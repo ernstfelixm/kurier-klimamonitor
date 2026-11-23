@@ -729,3 +729,6 @@ def run():
         output,
         local_now,
     )
+
+    if __name__ == "__main__":
+        run()
