@@ -654,6 +654,11 @@ def run():
             f"{today.isoformat()} already exists for all "
             f"{len(grids)} grids."
         )
+
+        build_map_today(
+            existing,
+            local_now,
+        )
         return
 
     if (
@@ -719,3 +724,8 @@ def run():
             f"Forecast coverage too low: "
             f"{len(results)}/{len(grids)} grids"
         )
+
+    build_map_today(
+        output,
+        local_now,
+    )
