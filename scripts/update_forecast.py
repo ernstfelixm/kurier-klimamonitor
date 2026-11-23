@@ -378,56 +378,151 @@ def ensure_austria_states_geojson():
     print(f"Austria state geometry written: {path}")
 
 
-def build_map_today(forecast_obj, stations, local_now):
+def build_map_today(
+    forecast_obj,
+    local_now,
+):
     """Build the compact data file used by the Shorthand Austria map."""
-    if forecast_obj.get("forecast_date") != local_now.date().isoformat():
-        raise RuntimeError("Cannot build map_today.json from a forecast for another date")
+
+    if (
+        forecast_obj.get("forecast_date")
+        != local_now.date().isoformat()
+    ):
+        raise RuntimeError(
+            "Cannot build map_today.json "
+            "from a forecast for another date"
+        )
+
+    mapping = load_json(
+        DATA
+        / "precipitation"
+        / "municipalities.json"
+    )
+
+    columns = mapping["columns"]
+
+    ix = {
+        name: i
+        for i, name in enumerate(columns)
+    }
 
     day_key = local_now.strftime("%m-%d")
-    forecast_values = forecast_obj.get("stations", {})
+
+    forecast_values = forecast_obj.get(
+        "grids",
+        {},
+    )
+
     climate_cache = {}
     map_rows = []
     window_days = None
 
-    for station in stations:
-        sid = str(station["id"])
-        forecast = parse_number(forecast_values.get(sid))
+    for municipality in mapping["municipalities"]:
+        municipality_id = str(
+            municipality[ix["id"]]
+        )
+
+        name = municipality[ix["name"]]
+        state = municipality[ix["state"]]
+        state_slug = municipality[ix["state_slug"]]
+
+        grid_id = municipality[ix["grid_id"]]
+        grid_lat = float(
+            municipality[ix["grid_lat"]]
+        )
+        grid_lon = float(
+            municipality[ix["grid_lon"]]
+        )
+
+        forecast = parse_number(
+            forecast_values.get(grid_id)
+        )
+
         if forecast is None:
             continue
 
-        state_slug = station.get("state_slug")
-        if not state_slug:
-            continue
-
         if state_slug not in climate_cache:
-            climate = load_json(DATA / "climatology" / f"{state_slug}.json")
-            columns = climate.get("columns", [])
-            climate_cache[state_slug] = (climate, columns)
-            if window_days is None:
-                window_days = climate.get("window_days")
+            climate = load_json(
+                DATA
+                / "temperature_grid"
+                / "climatology"
+                / f"{state_slug}.json"
+            )
 
-        climate, columns = climate_cache[state_slug]
-        series = climate.get("stations", {}).get(sid)
+            climate_columns = climate.get(
+                "columns",
+                [],
+            )
+
+            try:
+                p20_i = climate_columns.index(
+                    "p20_1991_2020"
+                )
+                median_i = climate_columns.index(
+                    "median_1991_2020"
+                )
+                p80_i = climate_columns.index(
+                    "p80_1991_2020"
+                )
+            except ValueError as exc:
+                raise RuntimeError(
+                    "Expected 1991-2020 climatology "
+                    f"columns missing in {state_slug}.json"
+                ) from exc
+
+            climate_cache[state_slug] = {
+                "climate": climate,
+                "p20_i": p20_i,
+                "median_i": median_i,
+                "p80_i": p80_i,
+            }
+
+            if window_days is None:
+                window_days = climate.get(
+                    "window_days"
+                )
+
+        cached = climate_cache[state_slug]
+        climate = cached["climate"]
+
+        series = climate.get(
+            "grids",
+            {},
+        ).get(grid_id)
+
         if not series:
             continue
 
-        try:
-            p20_i = columns.index("p20_1991_2020")
-            median_i = columns.index("median_1991_2020")
-            p80_i = columns.index("p80_1991_2020")
-        except ValueError as exc:
-            raise RuntimeError(
-                f"Expected 1991-2020 climatology columns missing in {state_slug}.json"
-            ) from exc
+        row = next(
+            (
+                item
+                for item in series
+                if item
+                and item[0] == day_key
+            ),
+            None,
+        )
 
-        row = next((item for item in series if item and item[0] == day_key), None)
         if row is None:
             continue
 
-        p20 = parse_number(row[p20_i])
-        median = parse_number(row[median_i])
-        p80 = parse_number(row[p80_i])
-        if p20 is None or median is None or p80 is None:
+        p20 = parse_number(
+            row[cached["p20_i"]]
+        )
+
+        median = parse_number(
+            row[cached["median_i"]]
+        )
+
+        p80 = parse_number(
+            row[cached["p80_i"]]
+        )
+
+        if (
+            p20 is None
+            or median is None
+            or p80 is None
+        ):
             continue
 
         if forecast > p80:
@@ -439,48 +534,104 @@ def build_map_today(forecast_obj, stations, local_now):
 
         map_rows.append(
             {
-                "id": station["id"],
-                "name": station.get("name"),
-                "state": station.get("state"),
-                "lat": round(station["lat"], 5),
-                "lon": round(station["lon"], 5),
-                "forecast": round(forecast, 1),
-                "p20": round(p20, 2),
-                "median": round(median, 2),
-                "p80": round(p80, 2),
-                "anomaly": round(forecast - median, 2),
+                "id": municipality_id,
+                "name": name,
+                "state": state,
+                "grid_id": grid_id,
+                "lat": round(
+                    grid_lat,
+                    5,
+                ),
+                "lon": round(
+                    grid_lon,
+                    5,
+                ),
+                "forecast": round(
+                    forecast,
+                    1,
+                ),
+                "p20": round(
+                    p20,
+                    2,
+                ),
+                "median": round(
+                    median,
+                    2,
+                ),
+                "p80": round(
+                    p80,
+                    2,
+                ),
+                "anomaly": round(
+                    forecast - median,
+                    2,
+                ),
                 "category": category,
             }
         )
 
     counts = {
-        "warm": sum(1 for item in map_rows if item["category"] == "warm"),
-        "normal": sum(1 for item in map_rows if item["category"] == "normal"),
-        "cold": sum(1 for item in map_rows if item["category"] == "cold"),
+        "warm": sum(
+            1
+            for item in map_rows
+            if item["category"] == "warm"
+        ),
+        "normal": sum(
+            1
+            for item in map_rows
+            if item["category"] == "normal"
+        ),
+        "cold": sum(
+            1
+            for item in map_rows
+            if item["category"] == "cold"
+        ),
     }
 
     output = {
-        "status": "ok" if map_rows else "error",
+        "status": (
+            "ok"
+            if map_rows
+            else "error"
+        ),
         "date": local_now.date().isoformat(),
-        "generated_at": forecast_obj.get("generated_at") or local_now.isoformat(timespec="seconds"),
+        "generated_at": (
+            forecast_obj.get("generated_at")
+            or local_now.isoformat(
+                timespec="seconds"
+            )
+        ),
         "reference_period": REFERENCE_PERIOD,
         "window_days": window_days,
-        "station_count": len(map_rows),
-        "expected_station_count": len(stations),
+        "municipality_count": len(map_rows),
+        "expected_municipality_count": mapping.get(
+            "count",
+            len(mapping["municipalities"]),
+        ),
         "category_counts": counts,
         "categories": {
             "warm": "ungewöhnlich warm",
             "normal": "normal",
             "cold": "ungewöhnlich kalt",
         },
+
+        # Temporarily keep this key for compatibility
+        # with the existing map integration.
         "stations": map_rows,
     }
 
-    save_json(DATA / "map_today.json", output)
+    save_json(
+        DATA / "map_today.json",
+        output,
+    )
+
     print(
         "Map data written: "
-        f"{len(map_rows)}/{len(stations)} stations; "
-        f"warm={counts['warm']}, normal={counts['normal']}, cold={counts['cold']}"
+        f"{len(map_rows)}/"
+        f"{len(mapping['municipalities'])} municipalities; "
+        f"warm={counts['warm']}, "
+        f"normal={counts['normal']}, "
+        f"cold={counts['cold']}"
     )
 
 
