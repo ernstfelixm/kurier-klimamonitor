@@ -1,0 +1,253 @@
+name: Compare municipality reference points
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compare reference points
+        run: |
+          python - <<'PY'
+          import json
+          import math
+          from pathlib import Path
+          from urllib.parse import urlencode
+          from urllib.request import urlopen
+
+          CURRENT = Path("docs/data/municipalities.json")
+          REPORT = Path("docs/data/municipality_reference_comparison.json")
+
+          params = {
+              "service": "WFS",
+              "version": "1.0.0",
+              "request": "GetFeature",
+              "typeName": "GEODATA:STATISTIK_AUSTRIA_GEM_MP_20250101",
+              "outputFormat": "application/json",
+              "srsName": "EPSG:4326",
+          }
+
+          url = (
+              "https://www.statistik.gv.at/gs-open/GEODATA/ows?"
+              + urlencode(params)
+          )
+
+          print("Lade Statistik-Austria-Gemeindeschwerpunkte ...")
+          with urlopen(url, timeout=120) as response:
+              official = json.load(response)
+
+          current = json.loads(
+              CURRENT.read_text(encoding="utf-8")
+          )
+
+          columns = current["columns"]
+          ix = {name: i for i, name in enumerate(columns)}
+
+          old = {}
+          for row in current["municipalities"]:
+              old[str(row[ix["id"]])] = {
+                  "name": row[ix["name"]],
+                  "state": row[ix["state"]],
+                  "lat": float(row[ix["lat"]]),
+                  "lon": float(row[ix["lon"]]),
+              }
+
+          def property_value(props, *names):
+              lowered = {
+                  str(k).lower(): v
+                  for k, v in props.items()
+              }
+              for name in names:
+                  if name.lower() in lowered:
+                      return lowered[name.lower()]
+              return None
+
+          new = {}
+
+          for feature in official.get("features", []):
+              props = feature.get("properties", {})
+              geometry = feature.get("geometry") or {}
+
+              gid = property_value(
+                  props,
+                  "g_id",
+                  "gemnr",
+                  "id",
+              )
+
+              gname = property_value(
+                  props,
+                  "g_name",
+                  "name",
+              )
+
+              coords = geometry.get("coordinates")
+
+              if gid is None or not coords:
+                  continue
+
+              gid = str(gid).strip()
+
+              # Gemeinde-IDs immer fünfstellig behandeln.
+              if gid.isdigit():
+                  gid = gid.zfill(5)
+
+              lon = float(coords[0])
+              lat = float(coords[1])
+
+              new[gid] = {
+                  "name": gname,
+                  "lat": lat,
+                  "lon": lon,
+              }
+
+          def haversine_km(lat1, lon1, lat2, lon2):
+              radius = 6371.0088
+
+              p1 = math.radians(lat1)
+              p2 = math.radians(lat2)
+              dp = math.radians(lat2 - lat1)
+              dl = math.radians(lon2 - lon1)
+
+              a = (
+                  math.sin(dp / 2) ** 2
+                  + math.cos(p1)
+                  * math.cos(p2)
+                  * math.sin(dl / 2) ** 2
+              )
+
+              return (
+                  radius
+                  * 2
+                  * math.atan2(
+                      math.sqrt(a),
+                      math.sqrt(1 - a),
+                  )
+              )
+
+          old_ids = set(old)
+          new_ids = set(new)
+
+          matched = sorted(old_ids & new_ids)
+          missing_official = sorted(old_ids - new_ids)
+          extra_official = sorted(new_ids - old_ids)
+
+          comparisons = []
+
+          for gid in matched:
+              a = old[gid]
+              b = new[gid]
+
+              distance = haversine_km(
+                  a["lat"],
+                  a["lon"],
+                  b["lat"],
+                  b["lon"],
+              )
+
+              comparisons.append(
+                  {
+                      "id": gid,
+                      "name": a["name"],
+                      "state": a["state"],
+                      "old_lat": round(a["lat"], 6),
+                      "old_lon": round(a["lon"], 6),
+                      "new_lat": round(b["lat"], 6),
+                      "new_lon": round(b["lon"], 6),
+                      "distance_km": round(distance, 3),
+                  }
+              )
+
+          distances = sorted(
+              x["distance_km"]
+              for x in comparisons
+          )
+
+          def percentile(values, q):
+              if not values:
+                  return None
+
+              pos = (len(values) - 1) * q
+              lo = math.floor(pos)
+              hi = math.ceil(pos)
+
+              if lo == hi:
+                  return values[lo]
+
+              f = pos - lo
+              return (
+                  values[lo] * (1 - f)
+                  + values[hi] * f
+              )
+
+          report = {
+              "source": "Statistik Austria Gemeinden - Schwerpunkte 2025-01-01",
+              "definition": "population-weighted municipality reference points",
+              "current_count": len(old),
+              "official_count": len(new),
+              "matched_count": len(matched),
+              "missing_official_ids": missing_official,
+              "extra_official_ids": extra_official,
+              "distance_summary_km": {
+                  "median": round(
+                      percentile(distances, 0.5), 3
+                  ) if distances else None,
+                  "p80": round(
+                      percentile(distances, 0.8), 3
+                  ) if distances else None,
+                  "p95": round(
+                      percentile(distances, 0.95), 3
+                  ) if distances else None,
+                  "max": round(
+                      max(distances), 3
+                  ) if distances else None,
+                  "over_1_km": sum(
+                      d > 1 for d in distances
+                  ),
+                  "over_2_km": sum(
+                      d > 2 for d in distances
+                  ),
+                  "over_5_km": sum(
+                      d > 5 for d in distances
+                  ),
+              },
+              "largest_changes": sorted(
+                  comparisons,
+                  key=lambda x: x["distance_km"],
+                  reverse=True,
+              )[:50],
+          }
+
+          REPORT.write_text(
+              json.dumps(
+                  report,
+                  ensure_ascii=False,
+                  indent=2,
+              ),
+              encoding="utf-8",
+          )
+
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Commit comparison report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add docs/data/municipality_reference_comparison.json
+
+          if git diff --cached --quiet; then
+            echo "No changes."
+          else
+            git commit -m "Compare municipality reference points"
+            git push
+          fi
