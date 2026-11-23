@@ -1,7 +1,12 @@
 name: Temperature Grid Test
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - feature/temperature-grid
+    paths:
+      - "scripts/build_temperature_grid.py"
+      - ".github/workflows/temperature-grid-test.yml"
 
 jobs:
   build-wien:
