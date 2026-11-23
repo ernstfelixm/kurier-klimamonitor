@@ -568,7 +568,6 @@ kurier-klimamonitor/
 │   ├── index.html
 │   └── data/
 │       ├── municipalities.json
-│       ├── places.json
 │       ├── forecast.json
 │       ├── map_today.json
 │       ├── austria_states.geojson
