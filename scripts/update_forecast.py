@@ -340,15 +340,15 @@ def collect_forecasts(grids, today):
                     grid,
                     len(timestamps),
                     today_indices,
-            )
-            successful += 1
-        except ValueError as exc:
-            errors.append(
-                {
-                    "grid_id": grid["id"],
-                    "error": str(exc),
-                }
-            )
+                )
+                successful += 1
+            except ValueError as exc:
+                errors.append(
+                    {    
+                        "grid_id": grid["id"],
+                        "error": str(exc),
+                    }
+                )
 
         print(f"Grids {start + 1}–{start + len(batch)}: {successful}/{len(batch)} forecasts")
 
