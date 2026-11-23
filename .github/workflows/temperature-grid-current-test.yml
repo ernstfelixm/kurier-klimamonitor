@@ -8,6 +8,8 @@ on:
     paths:
       - "scripts/update_temperature_grid.py"
       - ".github/workflows/temperature-grid-current-test.yml"
+permissions:
+  contents: write
 
 jobs:
   update-current:
