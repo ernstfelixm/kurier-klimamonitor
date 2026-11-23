@@ -1,5 +1,6 @@
 from pathlib import Path
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezon
+from zoneinfo import ZoneInfo
 import csv
 import io
 import json
@@ -583,7 +584,11 @@ def update_state(
 
 
 def run():
-    today = date.today()
+    today = datetime.now(
+        timezone.utc
+    ).astimezone(
+        ZoneInfo("Europe/Vienna")
+    ).date()
 
     grids_by_state = (
         municipality_grids()
