@@ -25,7 +25,7 @@ jobs:
         run: pip install requests
 
       - name: Build Vienna temperature grid climatology
-        run: python scripts/build_temperature_grid.py --state Wien
+        run: python scripts/build_temperature_grid.py --state Tirol
 
       - name: Show generated files
         run: |
@@ -35,5 +35,5 @@ jobs:
       - name: Upload temperature grid test data
         uses: actions/upload-artifact@v4
         with:
-          name: temperature-grid-wien
+          name: temperature-grid-tirol
           path: docs/data/temperature_grid/
