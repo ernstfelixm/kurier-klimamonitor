@@ -17,7 +17,7 @@ jobs:
       - name: Install Python dependencies
         run: pip install pandas odfpy
 
-      - name: Calculate Vienna population-weighted point
+      - name: Inspect Vienna population table
         run: |
           python - <<'PY'
           import json
@@ -83,7 +83,7 @@ jobs:
 
           print("Wiener Schwerpunktpunkte:", len(district_points))
 
-          # 3) ODS inspizieren und passende Tabelle automatisch suchen
+          # 3) ODS laden und Tabellenstruktur rund um Wien prüfen
           sheets = pd.read_excel(
               ods_path,
               sheet_name=None,
@@ -102,11 +102,28 @@ jobs:
                   )
 
                   if "Wien 1." in text or "Innere Stadt" in text:
+                      start = max(0, row_index - 6)
+                      end = min(len(df), row_index + 2)
+
+                      context_rows = []
+
+                      for i in range(start, end):
+                          context_rows.append(
+                              {
+                                  "row": int(i),
+                                  "values": [
+                                      None if pd.isna(x) else str(x)
+                                      for x in df.iloc[i].tolist()
+                                  ],
+                              }
+                          )
+
                       candidates.append(
                           {
                               "sheet": sheet_name,
                               "row": int(row_index),
                               "text": text[:500],
+                              "context_rows": context_rows,
                           }
                       )
 
@@ -114,8 +131,9 @@ jobs:
               "district_point_count": len(district_points),
               "population_table_candidates": candidates[:30],
               "note": (
-                  "Testlauf: findet zuerst die Struktur der offiziellen "
-                  "Bevölkerungstabelle. Noch keine produktiven Daten geändert."
+                  "Testlauf: zeigt die Tabellenstruktur und Kopfzeilen, "
+                  "damit die Bevölkerungsspalte für 1.1.2025 "
+                  "eindeutig identifiziert werden kann."
               ),
           }
 
@@ -141,6 +159,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes."
           else
-            git commit -m "Test Vienna population reference point"
+            git commit -m "Inspect Vienna population table"
             git push
           fi
