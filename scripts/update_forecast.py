@@ -336,10 +336,10 @@ def collect_forecasts(grids, today):
         ):
             try:
                 results[str(grid["id"])] = daily_max_for_grid(
-                feature,
-                grid,
-                len(timestamps),
-                today_indices,
+                    feature,
+                    grid,
+                    len(timestamps),
+                    today_indices,
             )
             successful += 1
         except ValueError as exc:
