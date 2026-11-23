@@ -124,8 +124,12 @@ def used_grids():
     ]
 
 
-def existing_complete_forecast_for_today(today, expected_station_count):
+def existing_complete_forecast_for_today(
+    today,
+    expected_grid_count,
+):
     path = DATA / "forecast.json"
+
     if not path.exists():
         return None
 
@@ -137,8 +141,10 @@ def existing_complete_forecast_for_today(today, expected_station_count):
     if (
         obj.get("status") == "ok"
         and obj.get("forecast_date") == today.isoformat()
-        and int(obj.get("station_count", 0)) >= expected_station_count
-        and int(obj.get("expected_station_count", 0)) == expected_station_count
+        and int(obj.get("grid_count", 0))
+        >= expected_grid_count
+        and int(obj.get("expected_grid_count", 0))
+        == expected_grid_count
     ):
         return obj
 
