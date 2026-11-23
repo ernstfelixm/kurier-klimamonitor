@@ -312,7 +312,13 @@ def collect_forecasts(grids, today):
         try:
             payload = fetch_forecast_batch(batch)
         except RuntimeError as exc:
-            errors.extend({"station_id": station["id"], "error": str(exc)[:300]} for station in batch)
+            errors.extend(
+                {
+                    "grid_id": grid["id"],
+                    "error": str(exc)[:300],
+                }
+                for grid in batch
+            )
             print(f"Stations {start + 1}–{start + len(batch)}: {exc}")
             continue
 
@@ -330,7 +336,7 @@ def collect_forecasts(grids, today):
         ):
             try:
                 results[str(grid["id"])] = daily_max_for_grid(
-                    feature,
+                feature,
                 grid,
                 len(timestamps),
                 today_indices,
@@ -344,7 +350,7 @@ def collect_forecasts(grids, today):
                 }
             )
 
-        print(f"Stations {start + 1}–{start + len(batch)}: {successful}/{len(batch)} forecasts")
+        print(f"Grids {start + 1}–{start + len(batch)}: {successful}/{len(batch)} forecasts")
 
     return results, errors
 
