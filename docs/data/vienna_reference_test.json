@@ -1,0 +1,21 @@
+{
+  "district_point_count": 23,
+  "population_table_candidates": [
+    {
+      "sheet": "Insgesamt",
+      "row": 147,
+      "text": "901 | Wien 1., Innere Stadt | 17630 | 17541 | 17384 | 17294 | 17285 | 17147 | 16976 | 16623 | 16525 | 16385 | 16290 | 16268 | 16131 | 16339 | 16411 | 16465 | 16450 | 16306 | 16047 | 15867 | 15700 | 16620 | 16538 | 16281 | 15879"
+    },
+    {
+      "sheet": "Österreichische_Staatsang_",
+      "row": 147,
+      "text": "901 | Wien 1., Innere Stadt | 14795 | 14691 | 14528 | 14328 | 14201 | 13998 | 13819 | 13519 | 13388 | 13193 | 12986 | 12843 | 12686 | 12624 | 12523 | 12439 | 12386 | 12239 | 11942 | 11780 | 11661 | 11414 | 11230 | 11162 | 11032"
+    },
+    {
+      "sheet": "Nichtösterreichische_Staatsang_",
+      "row": 147,
+      "text": "901 | Wien 1., Innere Stadt | 2835 | 2850 | 2856 | 2966 | 3084 | 3149 | 3157 | 3104 | 3137 | 3192 | 3304 | 3425 | 3445 | 3715 | 3888 | 4026 | 4064 | 4067 | 4105 | 4087 | 4039 | 5206 | 5308 | 5119 | 4847"
+    }
+  ],
+  "note": "Testlauf: findet zuerst die Struktur der offiziellen Bevölkerungstabelle. Noch keine produktiven Daten geändert."
+}
