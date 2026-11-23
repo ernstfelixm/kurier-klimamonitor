@@ -151,7 +151,7 @@ def fetch_forecast_batch(grids):
     raise RuntimeError(f"GeoSphere forecast request failed: {error}")
 
 
-def validate_forecast_batch(payload, station_count):
+def validate_forecast_batch(payload, expected_count):
     if not isinstance(payload, dict) or payload.get("type") != "FeatureCollection":
         raise ValueError("Expected a GeoSphere forecast FeatureCollection")
 
@@ -160,9 +160,13 @@ def validate_forecast_batch(payload, station_count):
         raise ValueError("GeoSphere forecast response has no timestamps")
 
     features = payload.get("features")
-    if not isinstance(features, list) or len(features) != station_count:
-        # An omitted feature would shift the positional mapping for later stations.
-        raise ValueError(f"Expected {station_count} GeoSphere features, one per requested location")
+    if not isinstance(features, list) or len(features) != expected_count:
+        # An omitted feature would shift the positional mapping
+        # for later requested grid points.
+        raise ValueError(
+            f"Expected {expected_count} GeoSphere features, "
+            "one per requested location"
+        )
 
 
 def parse_number(raw):
@@ -279,7 +283,7 @@ def collect_forecasts(grids, today):
                 }
                 for grid in batch
             )
-            print(f"Stations {start + 1}–{start + len(batch)}: {exc}")
+            print(f"Grids {start + 1}–{start + len(batch)}: {exc}")
             continue
 
         timestamps = payload["timestamps"]
