@@ -125,11 +125,13 @@ def parse_rows(text):
     lon_col = find_column(
         fields, exact=("lon", "longitude"), contains=("longitude", "lon")
     )
-    rr_col = find_column(
-        fields, exact=("RR",), contains=("rr [", "rr[", "precip")
+    tx_col = find_column(
+        fields,
+        exact=("TX",),
+        contains=("tx [", "tx[", "maximum"),
     )
 
-    if not time_col or not lat_col or not lon_col or not rr_col:
+    if not time_col or not lat_col or not lon_col or not tx_col:
         raise RuntimeError(f"Unerwartete SPARTACUS-CSV-Spalten: {fields}")
 
     rows = []
@@ -137,10 +139,10 @@ def parse_rows(text):
         raw_time = row.get(time_col)
         lat = parse_float(row.get(lat_col))
         lon = parse_float(row.get(lon_col))
-        rr = parse_float(row.get(rr_col))
+        tx = parse_float(row.get(tx_col))
         if not raw_time or lat is None or lon is None:
             continue
-        rows.append((str(raw_time)[:10], lat, lon, rr))
+        rows.append((str(raw_time)[:10], lat, lon, tx))
 
     return rows
 
