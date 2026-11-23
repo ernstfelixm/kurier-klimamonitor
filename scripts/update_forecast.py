@@ -145,16 +145,29 @@ def existing_complete_forecast_for_today(today, expected_station_count):
     return None
 
 
-def fetch_forecast_batch(stations):
-    params = [("parameters", PARAMETER), ("output_format", "geojson")]
-    params.extend(("lat_lon", f'{station["lat"]},{station["lon"]}') for station in stations)
+def fetch_forecast_batch(grids):
+    params = [
+        ("parameters", PARAMETER),
+        ("output_format", "geojson"),
+    ]
+
+    params.extend(
+        (
+            "lat_lon",
+            f'{grid["lat"]},{grid["lon"]}',
+        )
+        for grid in grids
+    )
 
     for attempt in range(REQUEST_ATTEMPTS):
         try:
             response = requests.get(BASE, params=params, timeout=TIMEOUT)
             response.raise_for_status()
             payload = response.json()
-            validate_forecast_batch(payload, len(stations))
+            validate_forecast_batch(
+                payload,
+                len(grids),
+            )
             return payload
         except requests.HTTPError as exc:
             status = exc.response.status_code
