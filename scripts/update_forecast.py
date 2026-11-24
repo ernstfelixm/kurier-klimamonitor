@@ -608,7 +608,10 @@ def run():
 
     existing = existing_complete_forecast_for_today(
         today,
-        len(grids),
+        [
+            grid["id"]
+            for grid in grids
+        ],
     )
 
     if existing is not None:
