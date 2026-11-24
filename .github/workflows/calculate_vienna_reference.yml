@@ -17,19 +17,16 @@ jobs:
       - name: Install Python dependencies
         run: pip install pandas odfpy
 
-      - name: Inspect Vienna population table
+      - name: Inspect population table header
         run: |
           python - <<'PY'
           import json
           import pandas as pd
           from pathlib import Path
           from urllib.request import urlretrieve
-          from urllib.parse import urlencode
-          from urllib.request import urlopen
 
           REPORT = Path("docs/data/vienna_reference_test.json")
 
-          # 1) Offizielle Statistik-Austria-Bevölkerungstabelle
           population_url = (
               "https://www.statistik.at/fileadmin/pages/405/"
               "Bev_Zeitreihe_Jahresbeginn_Gebietseinheiten.ods"
@@ -38,102 +35,46 @@ jobs:
           ods_path = "/tmp/population.ods"
           urlretrieve(population_url, ods_path)
 
-          # 2) Offizielle Statistik-Austria-Gemeindeschwerpunkte
-          params = {
-              "service": "WFS",
-              "version": "1.0.0",
-              "request": "GetFeature",
-              "typeName": "GEODATA:STATISTIK_AUSTRIA_GEM_MP_20250101",
-              "outputFormat": "application/json",
-              "srsName": "EPSG:4326",
-          }
-
-          wfs_url = (
-              "https://www.statistik.gv.at/gs-open/GEODATA/ows?"
-              + urlencode(params)
-          )
-
-          with urlopen(wfs_url, timeout=120) as response:
-              geo = json.load(response)
-
-          district_points = {}
-
-          for feature in geo.get("features", []):
-              props = {
-                  str(k).lower(): v
-                  for k, v in feature.get("properties", {}).items()
-              }
-
-              gid = props.get("g_id")
-              coords = (feature.get("geometry") or {}).get("coordinates")
-
-              if gid is None or not coords:
-                  continue
-
-              gid = str(gid).strip()
-
-              if gid.isdigit():
-                  gid = gid.zfill(5)
-
-              if gid.startswith("9") and gid != "90001":
-                  district_points[gid] = {
-                      "lon": float(coords[0]),
-                      "lat": float(coords[1]),
-                  }
-
-          print("Wiener Schwerpunktpunkte:", len(district_points))
-
-          # 3) ODS laden und Tabellenstruktur rund um Wien prüfen
-          sheets = pd.read_excel(
+          df = pd.read_excel(
               ods_path,
-              sheet_name=None,
+              sheet_name="Insgesamt",
               engine="odf",
               header=None,
           )
 
-          candidates = []
+          def clean_row(i):
+              return {
+                  "row": int(i),
+                  "values": [
+                      None if pd.isna(x) else str(x)
+                      for x in df.iloc[i].tolist()
+                  ],
+              }
 
-          for sheet_name, df in sheets.items():
-              for row_index, row in df.iterrows():
-                  text = " | ".join(
-                      str(x)
-                      for x in row.tolist()
-                      if pd.notna(x)
-                  )
+          header_rows = [
+              clean_row(i)
+              for i in range(min(15, len(df)))
+          ]
 
-                  if "Wien 1." in text or "Innere Stadt" in text:
-                      start = max(0, row_index - 6)
-                      end = min(len(df), row_index + 2)
+          vienna_rows = []
 
-                      context_rows = []
+          for i, row in df.iterrows():
+              first = str(row.iloc[0]).strip()
 
-                      for i in range(start, end):
-                          context_rows.append(
-                              {
-                                  "row": int(i),
-                                  "values": [
-                                      None if pd.isna(x) else str(x)
-                                      for x in df.iloc[i].tolist()
-                                  ],
-                              }
-                          )
-
-                      candidates.append(
-                          {
-                              "sheet": sheet_name,
-                              "row": int(row_index),
-                              "text": text[:500],
-                              "context_rows": context_rows,
-                          }
-                      )
+              if first in {
+                  str(x)
+                  for x in range(901, 924)
+              }:
+                  vienna_rows.append(clean_row(i))
 
           report = {
-              "district_point_count": len(district_points),
-              "population_table_candidates": candidates[:30],
+              "sheet": "Insgesamt",
+              "header_rows": header_rows,
+              "vienna_district_count": len(vienna_rows),
+              "vienna_rows": vienna_rows,
               "note": (
-                  "Testlauf: zeigt die Tabellenstruktur und Kopfzeilen, "
-                  "damit die Bevölkerungsspalte für 1.1.2025 "
-                  "eindeutig identifiziert werden kann."
+                  "Testlauf zur eindeutigen Identifikation "
+                  "der Bevölkerungsspalte für 1.1.2025."
               ),
           }
 
@@ -159,6 +100,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes."
           else
-            git commit -m "Inspect Vienna population table"
+            git commit -m "Inspect Vienna population table header"
             git push
           fi
