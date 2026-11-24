@@ -51,6 +51,55 @@ https://ernstfelixm.github.io/kurier-klimamonitor/data/
 
 Der Klima-Monitor arbeitet für alle 2.092 österreichischen Gemeinden.
 
+## Gemeinde-Referenzpunkte
+
+Die grundlegende Gemeindeliste liegt unter:
+
+```text
+docs/data/municipalities.json
+```
+
+Als geografischer Referenzpunkt wird grundsätzlich der Bevölkerungsschwerpunkt der Gemeinde verwendet.
+
+Für 2.091 Gemeinden stammen diese Punkte direkt aus dem Datensatz:
+
+```text
+Statistik Austria
+Gemeinden – Schwerpunkte
+STATISTIK_AUSTRIA_GEM_MP_20250101
+Stand: 2025-01-01
+```
+
+Die Statistik-Austria-Schwerpunkte basieren auf dem Bevölkerungsschwerpunkt einer Gemeinde.
+
+Für Wien gibt es in diesem Gemeindedatensatz keinen eigenen Punkt für die Gemeinde-ID `90001`, sondern 23 Punkte für die Wiener Gemeindebezirke.
+
+Der Referenzpunkt für Wien wird deshalb separat aus den 23 offiziellen Bezirksschwerpunkten berechnet. Dabei werden die Bezirkspunkte mit der jeweiligen Bezirksbevölkerung zum 1. Jänner 2025 gewichtet.
+
+Der daraus verwendete Wien-Referenzpunkt lautet:
+
+```text
+48.206301, 16.369308
+```
+
+Damit gilt grundsätzlich:
+
+```text
+Gemeinde
+   ↓
+Bevölkerungsschwerpunkt
+   ↓
+nächstgelegener GeoSphere-1-km-Rasterpunkt
+```
+
+Die Gemeindekoordinate selbst ist also nicht der Klima- oder Wetterwert.
+
+Sie dient dazu, für den jeweiligen GeoSphere-Datensatz den nächstgelegenen Rasterpunkt zu bestimmen.
+
+---
+
+## SPARTACUS-Mapping
+
 Die zentrale Rasterzuordnung für Temperatur und Niederschlag liegt unter:
 
 ```text
@@ -69,11 +118,29 @@ grid_lat
 grid_lon
 ```
 
+Für jeden Gemeinde-Referenzpunkt wird der nächstgelegene Rasterpunkt aus GeoSphere SPARTACUS v3 verwendet.
+
 Mehrere Gemeinden können demselben 1-km-Rasterpunkt zugeordnet sein. Daher gibt es weniger eindeutige Rasterpunkte als Gemeinden.
 
 Aktuell werden für 2.092 Gemeinden insgesamt 2.089 unterschiedliche Rasterpunkte verwendet.
 
-Temperatur und Temperaturprognose verwenden dieselben `grid_id`-Werte wie die Niederschlagsdaten.
+Temperatur und Niederschlag verwenden dieselben `grid_id`-Werte.
+
+Auch die Temperaturprognose wird für dieselben Gemeinde-Rasterpunkte berechnet.
+
+Für Wien ist der aktuell verwendete Rasterpunkt:
+
+```text
+grid_id:
+g138202600_196368576
+
+Koordinate:
+48.202600, 16.368576
+```
+
+---
+
+## SNOWGRID-Mapping
 
 Schnee verwendet ein eigenes Mapping:
 
@@ -83,13 +150,26 @@ docs/data/snow/municipalities.json
 
 Das ist notwendig, weil SNOWGRID ein eigener GeoSphere-Datensatz mit eigenem Raster ist.
 
+Auch hier wird vom Statistik-Austria-Bevölkerungsschwerpunkt der Gemeinde ausgegangen und anschließend der nächstgelegene SNOWGRID-Rasterpunkt bestimmt.
+
+Aktuell werden auch im SNOWGRID-Mapping für 2.092 Gemeinden insgesamt 2.089 unterschiedliche Rasterpunkte verwendet.
+
 Die Datei
 
 ```text
 docs/data/municipalities.json
 ```
 
-ist die grundlegende Gemeindeliste, aus der unter anderem Raster-Mappings aufgebaut werden. Sie ist nicht mit dem aktuellen gemeinsamen Raster-Mapping unter `precipitation/municipalities.json` zu verwechseln.
+enthält somit die geografischen Gemeinde-Referenzpunkte.
+
+Die Dateien
+
+```text
+docs/data/precipitation/municipalities.json
+docs/data/snow/municipalities.json
+```
+
+enthalten dagegen die daraus abgeleiteten Zuordnungen zu den jeweiligen GeoSphere-Rastern.
 
 ---
 
@@ -168,6 +248,12 @@ Beispiel:
 docs/data/temperature_grid/climatology/wien.json
 ```
 
+Der Build-Status liegt unter:
+
+```text
+docs/data/temperature_grid/build_status.json
+```
+
 ---
 
 ## Aktuelle Temperatur
@@ -198,6 +284,8 @@ Bei späteren Aktualisierungen werden die jüngsten 14 Tage erneut abgefragt. Da
 
 Der aktuelle lokale Kalendertag wird dabei nicht als abgeschlossener Beobachtungstag verwendet.
 
+Wenn sich das Gemeinde-Rastermapping ändert, entfernt der Updater alte, nicht mehr benötigte Rasterpunkte automatisch aus den aktuellen Temperaturdateien.
+
 ---
 
 # Temperaturprognose
@@ -224,7 +312,7 @@ Verwendeter Parameter:
 
 Das ist die stündliche Temperatur in 2 Metern Höhe.
 
-Für jeden Rasterpunkt wird aus den Stundenwerten des aktuellen Tages die höchste Temperatur bestimmt.
+Für jeden Rasterpunkt wird aus den Stundenwerten des aktuellen lokalen Tages die höchste Temperatur bestimmt.
 
 Die Prognose wird damit als heutige erwartete Tageshöchsttemperatur verwendet.
 
@@ -237,6 +325,10 @@ docs/data/forecast.json
 Die Prognose verwendet dieselben Gemeinde-Rasterpunkte wie Temperatur und Niederschlag.
 
 Dadurch können abgeschlossene SPARTACUS-Tage und der aktuelle Prognosetag direkt miteinander verbunden werden.
+
+Eine bereits vorhandene Forecast-Datei wird nur wiederverwendet, wenn nicht nur die erwartete Anzahl der Rasterpunkte, sondern auch die konkreten `grid_id`-Werte dem aktuellen Gemeindemapping entsprechen.
+
+Damit wird verhindert, dass nach einer Änderung der Gemeinde-Rasterzuordnung alte Forecast-Rasterpunkte weiterverwendet werden.
 
 ---
 
@@ -251,6 +343,23 @@ docs/data/map_today.json
 Diese Datei enthält die für eine Österreichkarte vorbereiteten Gemeindedaten des aktuellen Tages.
 
 Unter anderem werden Forecast und Klimatologie miteinander verglichen und die Gemeinden entsprechend eingeordnet.
+
+Die Datei enthält für alle erfolgreich verarbeiteten Gemeinden unter anderem:
+
+```text
+id
+name
+state
+grid_id
+lat
+lon
+forecast
+p20
+median
+p80
+anomaly
+category
+```
 
 Zusätzlich wird die Bundesländer-Geometrie verwendet:
 
@@ -301,7 +410,9 @@ mit den Referenzperioden:
 1991–2020
 ```
 
-Eine 30-Tage-Summe wird nur erzeugt, wenn für alle 30 Kalendertage Werte vorliegen. Fehlende Tage werden nicht stillschweigend als `0` interpretiert.
+Eine 30-Tage-Summe wird nur erzeugt, wenn für alle 30 Kalendertage Werte vorliegen.
+
+Fehlende Tage werden nicht stillschweigend als `0` interpretiert.
 
 Die Klimatologie liegt unter:
 
@@ -320,6 +431,14 @@ Informationen über den letzten vollständigen Build liegen unter:
 ```text
 docs/data/precipitation/build_status.json
 ```
+
+Der Niederschlags-Build erzeugt außerdem die zentrale SPARTACUS-Rasterzuordnung:
+
+```text
+docs/data/precipitation/municipalities.json
+```
+
+Diese Rasterzuordnung wird auch von Temperatur und Temperaturprognose verwendet.
 
 ---
 
@@ -437,6 +556,14 @@ scripts/build_snow_mapping.py
 
 Da SNOWGRID ein eigenes Raster besitzt, wird für jede Gemeinde separat ein SNOWGRID-Rasterpunkt bestimmt.
 
+Ausgangspunkt ist der Gemeinde-Bevölkerungsschwerpunkt aus:
+
+```text
+docs/data/municipalities.json
+```
+
+Für diesen Referenzpunkt wird der nächstgelegene von GeoSphere zurückgegebene SNOWGRID-Rasterpunkt verwendet.
+
 Ausgabe:
 
 ```text
@@ -474,7 +601,7 @@ Kalendertag ± 3 Tage
 
 also insgesamt sieben Kalendertage.
 
-Berechnet werden unter anderem:
+Berechnet werden derzeit unter anderem:
 
 ```text
 20. Perzentil
@@ -485,7 +612,7 @@ Anteil schneefreier Tage
 
 Der Anteil schneefreier Vergleichstage wird als `zero_share` gespeichert.
 
-Dadurch lässt sich auch in Jahreszeiten, in denen meist kein Schnee liegt, sinnvoll beurteilen, ob eine aktuelle Schneedecke ungewöhnlich ist.
+Damit kann zusätzlich zur Schneehöhe beurteilt werden, wie häufig an vergleichbaren historischen Tagen überhaupt Schnee lag.
 
 Die Klimatologie liegt unter:
 
@@ -527,6 +654,10 @@ Für das Frontend werden maximal 120 Tage gespeichert.
 
 Der aktuelle lokale Kalendertag wird nicht als abgeschlossener Tageswert verwendet.
 
+Es gibt keine alternative Fallback-Datenquelle.
+
+Fehlende Werte werden nicht als `0 cm` interpretiert.
+
 Status:
 
 ```text
@@ -545,6 +676,7 @@ kurier-klimamonitor/
 ├── .github/
 │   └── workflows/
 │       ├── update.yml
+│       ├── build_temperature_grid.yml
 │       ├── forecast.yml
 │       ├── build_precipitation.yml
 │       ├── update_precipitation.yml
@@ -574,7 +706,8 @@ kurier-klimamonitor/
 │       │
 │       ├── temperature_grid/
 │       │   ├── climatology/
-│       │   └── current/
+│       │   ├── current/
+│       │   └── build_status.json
 │       │
 │       ├── precipitation/
 │       │   ├── municipalities.json
@@ -603,9 +736,9 @@ kurier-klimamonitor/
 | `build_temperature_grid.py` | Erzeugt die historische Temperatur-Klimatologie |
 | `update_temperature_grid.py` | Aktualisiert aktuelle abgeschlossene Temperaturtage |
 | `update_forecast.py` | Erzeugt Temperaturprognose und Kartendaten |
-| `build_precipitation.py` | Erzeugt Niederschlags-Mapping und historische 30-Tage-Klimatologie |
+| `build_precipitation.py` | Erzeugt SPARTACUS-Gemeindemapping und historische 30-Tage-Niederschlagsklimatologie |
 | `update_precipitation.py` | Aktualisiert aktuelle 30-Tage-Niederschlagswerte |
-| `build_snow_mapping.py` | Ordnet Gemeinden dem SNOWGRID-Raster zu |
+| `build_snow_mapping.py` | Ordnet Gemeinde-Bevölkerungsschwerpunkte dem SNOWGRID-Raster zu |
 | `build_snow_climatology.py` | Erzeugt die historische Schnee-Klimatologie |
 | `update_snow.py` | Aktualisiert aktuelle Schneehöhen |
 | `test_inca_spartacus_precipitation.py` | Vergleicht SPARTACUS und INCA methodisch |
@@ -615,6 +748,29 @@ kurier-klimamonitor/
 # GitHub Actions
 
 Alle derzeit im Repository definierten Fach-Workflows sind über `workflow_dispatch` manuell startbar.
+
+## Temperatur-Klimatologie bauen
+
+```text
+.github/workflows/build_temperature_grid.yml
+```
+
+führt aus:
+
+```text
+scripts/build_temperature_grid.py
+```
+
+Dabei kann entweder ein einzelnes Bundesland oder ganz Österreich gebaut werden.
+
+Der Workflow aktualisiert:
+
+```text
+docs/data/temperature_grid/climatology/
+docs/data/temperature_grid/build_status.json
+```
+
+---
 
 ## Temperatur aktualisieren
 
@@ -672,6 +828,8 @@ scripts/build_precipitation.py
 
 Dabei kann entweder ein einzelnes Bundesland oder ganz Österreich gebaut werden.
 
+Der Build aktualisiert auch die SPARTACUS-Rasterzuordnung der Gemeinden.
+
 ---
 
 ## Niederschlag aktualisieren
@@ -700,6 +858,12 @@ führt aus:
 scripts/build_snow_mapping.py
 ```
 
+und erzeugt:
+
+```text
+docs/data/snow/municipalities.json
+```
+
 ---
 
 ## Schnee-Klimatologie bauen
@@ -713,6 +877,8 @@ führt aus:
 ```text
 scripts/build_snow_climatology.py
 ```
+
+Dabei kann entweder ein einzelnes Bundesland oder ganz Österreich gebaut werden.
 
 ---
 
@@ -742,12 +908,14 @@ Automatische Aufrufe, die beispielsweise über einen externen Cron-Dienst erfolg
 
 Das zentrale Bindeglied zwischen Gemeinde und Klima-Raster ist die `grid_id`.
 
-Beispiel:
+Vereinfacht:
 
 ```text
 Gemeinde
    ↓
-municipality id
+Statistik-Austria-Bevölkerungsschwerpunkt
+   ↓
+GeoSphere-Rasterpunkt
    ↓
 grid_id
    ↓
@@ -756,7 +924,7 @@ historische Klimatologie
 Prognose
 ```
 
-Temperatur und Niederschlag verwenden derzeit dieselbe Rasterzuordnung aus:
+Temperatur und Niederschlag verwenden dieselbe Rasterzuordnung aus:
 
 ```text
 docs/data/precipitation/municipalities.json
@@ -797,11 +965,31 @@ p20–p80     → üblicher Bereich
 Wert > p80  → ungewöhnlich warm
 ```
 
-Für Niederschlag und Schnee wird dasselbe Prinzip fachlich an die jeweilige Messgröße angepasst.
+Für Niederschlag und Schnee wird dasselbe Grundprinzip fachlich an die jeweilige Messgröße angepasst.
+
+Beim Schnee wird zusätzlich der historische Anteil schneefreier Vergleichstage berücksichtigt.
 
 ---
 
 # Öffentliche Beispiele
+
+Gemeinde-Referenzpunkte:
+
+```text
+https://ernstfelixm.github.io/kurier-klimamonitor/data/municipalities.json
+```
+
+SPARTACUS-Gemeindemapping:
+
+```text
+https://ernstfelixm.github.io/kurier-klimamonitor/data/precipitation/municipalities.json
+```
+
+SNOWGRID-Gemeindemapping:
+
+```text
+https://ernstfelixm.github.io/kurier-klimamonitor/data/snow/municipalities.json
+```
 
 Temperatur aktuell:
 
@@ -819,6 +1007,12 @@ Temperaturprognose:
 
 ```text
 https://ernstfelixm.github.io/kurier-klimamonitor/data/forecast.json
+```
+
+Temperaturkarte:
+
+```text
+https://ernstfelixm.github.io/kurier-klimamonitor/data/map_today.json
 ```
 
 Niederschlag aktuell:
@@ -843,12 +1037,6 @@ Schnee-Klimatologie:
 
 ```text
 https://ernstfelixm.github.io/kurier-klimamonitor/data/snow/climatology/wien.json
-```
-
-Gemeinde-Rastermapping:
-
-```text
-https://ernstfelixm.github.io/kurier-klimamonitor/data/precipitation/municipalities.json
 ```
 
 ---
@@ -907,7 +1095,9 @@ https://ernstfelixm.github.io/kurier-klimamonitor/
 
 # Datenquellen
 
-Die fachlichen Daten stammen von GeoSphere Austria über die Dataset API:
+## GeoSphere Austria
+
+Die fachlichen Klima- und Wetterdaten stammen von GeoSphere Austria über die Dataset API:
 
 ```text
 https://dataset.api.hub.geosphere.at/v1/
@@ -922,6 +1112,19 @@ INCA v2 hourly 1 km
 SNOWGRID Klima v2.1 daily 1 km
 ```
 
+## Statistik Austria
+
+Die geografischen Gemeinde-Referenzpunkte stammen aus:
+
+```text
+Statistik Austria
+Gemeinden – Schwerpunkte
+STATISTIK_AUSTRIA_GEM_MP_20250101
+Stand: 2025-01-01
+```
+
+Für Wien wird der Gemeinde-Referenzpunkt aus den 23 Bezirksschwerpunkten abgeleitet und mit der Bezirksbevölkerung zum 1. Jänner 2025 gewichtet.
+
 ---
 
 # Grundprinzip
@@ -929,6 +1132,10 @@ SNOWGRID Klima v2.1 daily 1 km
 Das Repository trennt bewusst zwischen:
 
 ```text
+Gemeinde-Referenzpunkt
+        ↓
+GeoSphere-Rasterzuordnung
+        ↓
 historischer Klimatologie
         +
 aktuellen abgeschlossenen Tagesdaten
@@ -936,6 +1143,8 @@ aktuellen abgeschlossenen Tagesdaten
 aktueller Prognose
 ```
 
-und stellt diese Daten in kleinen, nach Bundesland getrennten JSON-Dateien für das Frontend bereit.
+Die großen GeoSphere-Rohdatensätze werden serverseitig über die Python-Skripte aufbereitet.
 
-So kann der KURIER Klima-Monitor für jede österreichische Gemeinde aktuelle Wetter- bzw. Klimawerte mit historischen Vergleichsperioden einordnen, ohne dass das Frontend selbst große Rohdatensätze von GeoSphere verarbeiten muss.
+Das Frontend muss deshalb nicht selbst große GeoSphere-Datensätze laden oder Rasterpunkte bestimmen.
+
+So kann der KURIER Klima-Monitor für jede österreichische Gemeinde aktuelle Wetter- bzw. Klimawerte mit historischen Vergleichsperioden einordnen.
