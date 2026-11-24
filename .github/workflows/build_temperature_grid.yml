@@ -1,0 +1,73 @@
+name: Build SPARTACUS temperature climatology
+
+on:
+  workflow_dispatch:
+    inputs:
+      state:
+        description: "Bundesland oder all"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - Burgenland
+          - Kärnten
+          - Niederösterreich
+          - Oberösterreich
+          - Salzburg
+          - Steiermark
+          - Tirol
+          - Vorarlberg
+          - Wien
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate-temperature-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build temperature climatology
+        id: temperature_build
+        continue-on-error: true
+        run: python scripts/build_temperature_grid.py --state "${{ inputs.state }}"
+
+      - name: Commit temperature climatology
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            docs/data/temperature_grid/climatology \
+            docs/data/temperature_grid/build_status.json
+
+          if git diff --cached --quiet; then
+            echo "No temperature climatology changes."
+          else
+            git commit -m "Build SPARTACUS temperature climatology"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Mark workflow as failed when build failed
+        if: steps.temperature_build.outcome == 'failure'
+        run: exit 1
