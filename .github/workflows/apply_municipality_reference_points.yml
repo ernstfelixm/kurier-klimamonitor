@@ -1,0 +1,221 @@
+name: Apply municipality reference points
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Apply Statistik Austria reference points
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from urllib.parse import urlencode
+          from urllib.request import urlopen
+
+          PATH = Path("docs/data/municipalities.json")
+          VIENNA_PATH = Path("docs/data/vienna_reference_test.json")
+
+          data = json.loads(
+              PATH.read_text(encoding="utf-8")
+          )
+
+          vienna_test = json.loads(
+              VIENNA_PATH.read_text(encoding="utf-8")
+          )
+
+          vienna = vienna_test["vienna_reference"]
+
+          if vienna["id"] != "90001":
+              raise RuntimeError("Unerwartete Wien-ID.")
+
+          params = {
+              "service": "WFS",
+              "version": "1.0.0",
+              "request": "GetFeature",
+              "typeName": "GEODATA:STATISTIK_AUSTRIA_GEM_MP_20250101",
+              "outputFormat": "application/json",
+              "srsName": "EPSG:4326",
+          }
+
+          url = (
+              "https://www.statistik.gv.at/gs-open/GEODATA/ows?"
+              + urlencode(params)
+          )
+
+          print("Lade Statistik-Austria-Bevölkerungsschwerpunkte ...")
+
+          with urlopen(url, timeout=120) as response:
+              official = json.load(response)
+
+          points = {}
+
+          for feature in official.get("features", []):
+              props = {
+                  str(k).lower(): v
+                  for k, v in feature.get("properties", {}).items()
+              }
+
+              gid = props.get("g_id")
+              coords = (feature.get("geometry") or {}).get("coordinates")
+
+              if gid is None or not coords:
+                  continue
+
+              gid = str(gid).strip()
+
+              if gid.isdigit():
+                  gid = gid.zfill(5)
+
+              # Die 23 Wiener Bezirke werden nicht als
+              # eigene Gemeinden übernommen.
+              if gid.startswith("9"):
+                  continue
+
+              points[gid] = {
+                  "lat": float(coords[1]),
+                  "lon": float(coords[0]),
+              }
+
+          columns = data["columns"]
+          ix = {
+              name: i
+              for i, name in enumerate(columns)
+          }
+
+          expected_ids = {
+              str(row[ix["id"]])
+              for row in data["municipalities"]
+              if str(row[ix["id"]]) != "90001"
+          }
+
+          official_ids = set(points)
+
+          missing = sorted(expected_ids - official_ids)
+          extra = sorted(official_ids - expected_ids)
+
+          if missing:
+              raise RuntimeError(
+                  f"Fehlende Statistik-Austria-Gemeinden: {missing}"
+              )
+
+          if extra:
+              raise RuntimeError(
+                  f"Unerwartete Statistik-Austria-Gemeinden: {extra}"
+              )
+
+          updated = 0
+
+          for row in data["municipalities"]:
+              gid = str(row[ix["id"]])
+
+              if gid == "90001":
+                  row[ix["lat"]] = float(vienna["lat"])
+                  row[ix["lon"]] = float(vienna["lon"])
+                  updated += 1
+                  continue
+
+              point = points[gid]
+
+              row[ix["lat"]] = point["lat"]
+              row[ix["lon"]] = point["lon"]
+              updated += 1
+
+          if updated != 2092:
+              raise RuntimeError(
+                  f"Erwartet 2092 Gemeinden, aktualisiert: {updated}"
+              )
+
+          data["version"] = "2025-01-01"
+          data["count"] = len(data["municipalities"])
+
+          PATH.write_text(
+              json.dumps(
+                  data,
+                  ensure_ascii=False,
+                  separators=(",", ":"),
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+
+          print("Aktualisierte Gemeinden:", updated)
+          print(
+              "Wien:",
+              vienna["lat"],
+              vienna["lon"],
+          )
+          PY
+
+      - name: Validate result
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("docs/data/municipalities.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+
+          if data["count"] != 2092:
+              raise RuntimeError(
+                  f"Falsche Anzahl: {data['count']}"
+              )
+
+          if data["columns"] != [
+              "id",
+              "name",
+              "state",
+              "lat",
+              "lon",
+          ]:
+              raise RuntimeError(
+                  f"Unerwartete Spalten: {data['columns']}"
+              )
+
+          ix = {
+              name: i
+              for i, name in enumerate(data["columns"])
+          }
+
+          vienna = next(
+              row
+              for row in data["municipalities"]
+              if row[ix["id"]] == "90001"
+          )
+
+          if (
+              abs(float(vienna[ix["lat"]]) - 48.206301) > 0.000001
+              or
+              abs(float(vienna[ix["lon"]]) - 16.369308) > 0.000001
+          ):
+              raise RuntimeError(
+                  f"Unerwarteter Wien-Punkt: {vienna}"
+              )
+
+          print("Validierung erfolgreich.")
+          print("Gemeinden:", data["count"])
+          print("Wien:", vienna)
+          PY
+
+      - name: Commit municipality reference points
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add docs/data/municipalities.json
+
+          if git diff --cached --quiet; then
+            echo "No changes."
+          else
+            git commit -m "Use Statistik Austria municipality reference points"
+            git push
+          fi
