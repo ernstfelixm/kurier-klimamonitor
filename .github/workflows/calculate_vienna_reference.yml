@@ -17,16 +17,18 @@ jobs:
       - name: Install Python dependencies
         run: pip install pandas odfpy
 
-      - name: Inspect population table header
+      - name: Calculate Vienna population-weighted reference point
         run: |
           python - <<'PY'
           import json
           import pandas as pd
           from pathlib import Path
-          from urllib.request import urlretrieve
+          from urllib.request import urlretrieve, urlopen
+          from urllib.parse import urlencode
 
           REPORT = Path("docs/data/vienna_reference_test.json")
 
+          # Bevölkerung am 1.1.2025
           population_url = (
               "https://www.statistik.at/fileadmin/pages/405/"
               "Bev_Zeitreihe_Jahresbeginn_Gebietseinheiten.ods"
@@ -42,40 +44,136 @@ jobs:
               header=None,
           )
 
-          def clean_row(i):
-              return {
-                  "row": int(i),
-                  "values": [
-                      None if pd.isna(x) else str(x)
-                      for x in df.iloc[i].tolist()
-                  ],
+          # Spalte 25 entspricht laut Tabellenkopf dem 1.1.2025.
+          population_col = 25
+
+          populations = {}
+
+          for _, row in df.iterrows():
+              code = str(row.iloc[0]).strip()
+
+              if code in {str(x) for x in range(901, 924)}:
+                  populations[code] = {
+                      "name": str(row.iloc[1]),
+                      "population": int(row.iloc[population_col]),
+                  }
+
+          # Statistik-Austria-Bevölkerungsschwerpunkte 2025
+          params = {
+              "service": "WFS",
+              "version": "1.0.0",
+              "request": "GetFeature",
+              "typeName": "GEODATA:STATISTIK_AUSTRIA_GEM_MP_20250101",
+              "outputFormat": "application/json",
+              "srsName": "EPSG:4326",
+          }
+
+          url = (
+              "https://www.statistik.gv.at/gs-open/GEODATA/ows?"
+              + urlencode(params)
+          )
+
+          with urlopen(url, timeout=120) as response:
+              geo = json.load(response)
+
+          points = {}
+
+          for feature in geo.get("features", []):
+              props = {
+                  str(k).lower(): v
+                  for k, v in feature.get("properties", {}).items()
               }
 
-          header_rows = [
-              clean_row(i)
-              for i in range(min(15, len(df)))
-          ]
+              gid = props.get("g_id")
+              coords = (feature.get("geometry") or {}).get("coordinates")
 
-          vienna_rows = []
+              if gid is None or not coords:
+                  continue
 
-          for i, row in df.iterrows():
-              first = str(row.iloc[0]).strip()
+              gid = str(gid).strip()
 
-              if first in {
-                  str(x)
-                  for x in range(901, 924)
-              }:
-                  vienna_rows.append(clean_row(i))
+              if gid.isdigit():
+                  gid = gid.zfill(5)
+
+              # 90101 -> Bezirk 901, 90201 -> 902 usw.
+              if len(gid) == 5 and gid.startswith("9"):
+                  district_code = gid[:3]
+
+                  if district_code in {
+                      str(x)
+                      for x in range(901, 924)
+                  }:
+                      points[district_code] = {
+                          "lat": float(coords[1]),
+                          "lon": float(coords[0]),
+                          "grid_source_id": gid,
+                      }
+
+          missing_population = sorted(
+              set(str(x) for x in range(901, 924))
+              - set(populations)
+          )
+
+          missing_points = sorted(
+              set(str(x) for x in range(901, 924))
+              - set(points)
+          )
+
+          if missing_population:
+              raise RuntimeError(
+                  f"Fehlende Bevölkerungsdaten: {missing_population}"
+              )
+
+          if missing_points:
+              raise RuntimeError(
+                  f"Fehlende Schwerpunktpunkte: {missing_points}"
+              )
+
+          total_population = sum(
+              populations[code]["population"]
+              for code in populations
+          )
+
+          weighted_lat = sum(
+              points[code]["lat"]
+              * populations[code]["population"]
+              for code in populations
+          ) / total_population
+
+          weighted_lon = sum(
+              points[code]["lon"]
+              * populations[code]["population"]
+              for code in populations
+          ) / total_population
+
+          districts = []
+
+          for code in sorted(populations):
+              districts.append(
+                  {
+                      "code": code,
+                      "name": populations[code]["name"],
+                      "population_2025": populations[code]["population"],
+                      "lat": round(points[code]["lat"], 6),
+                      "lon": round(points[code]["lon"], 6),
+                  }
+              )
 
           report = {
-              "sheet": "Insgesamt",
-              "header_rows": header_rows,
-              "vienna_district_count": len(vienna_rows),
-              "vienna_rows": vienna_rows,
-              "note": (
-                  "Testlauf zur eindeutigen Identifikation "
-                  "der Bevölkerungsspalte für 1.1.2025."
+              "method": (
+                  "Population-weighted mean of the 23 Statistik Austria "
+                  "Vienna district population centres"
               ),
+              "reference_date": "2025-01-01",
+              "district_count": len(districts),
+              "total_population": total_population,
+              "vienna_reference": {
+                  "id": "90001",
+                  "name": "Wien",
+                  "lat": round(weighted_lat, 6),
+                  "lon": round(weighted_lon, 6),
+              },
+              "districts": districts,
           }
 
           REPORT.write_text(
@@ -100,6 +198,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes."
           else
-            git commit -m "Inspect Vienna population table header"
+            git commit -m "Calculate Vienna population reference point"
             git push
           fi
