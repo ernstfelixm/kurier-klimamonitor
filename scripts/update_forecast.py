@@ -80,7 +80,7 @@ def used_grids():
 
 def existing_complete_forecast_for_today(
     today,
-    expected_grid_count,
+    expected_grid_ids,
 ):
     path = DATA / "forecast.json"
 
@@ -92,13 +92,18 @@ def existing_complete_forecast_for_today(
     except Exception:
         return None
 
+    forecast_grid_ids = set(
+        obj.get("grids", {}).keys()
+    )
+
+    expected_grid_ids = set(
+        expected_grid_ids
+    )
+
     if (
         obj.get("status") == "ok"
         and obj.get("forecast_date") == today.isoformat()
-        and int(obj.get("grid_count", 0))
-        >= expected_grid_count
-        and int(obj.get("expected_grid_count", 0))
-        == expected_grid_count
+        and forecast_grid_ids == expected_grid_ids
     ):
         return obj
 
