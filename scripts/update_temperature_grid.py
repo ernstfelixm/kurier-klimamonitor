@@ -463,6 +463,19 @@ def update_state(
         {},
     )
 
+    valid_grid_ids = {
+        grid["id"]
+        for grid in grids
+    }
+
+    store = {
+        grid_id: rows
+        for grid_id, rows in store.items()
+        if grid_id in valid_grid_ids
+    }
+
+    obj["grids"] = store
+
     print()
     print(
         f"{state}: "
