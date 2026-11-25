@@ -1,3 +1,4 @@
+
 from pathlib import Path
 from datetime import date, timedelta, datetime, timezone
 from zoneinfo import ZoneInfo
@@ -20,12 +21,15 @@ API = (
 )
 PARAMETER = "TX"
 
-# Beim ersten Lauf genug Daten für die 90-Tage-Ansicht laden.
+# Historie für die 90-Tage-Ansicht
+# einschließlich Sicherheitsreserve.
 HISTORY_DAYS = 120
 
-# Danach täglich nur die jüngsten Tage erneut laden.
-# So können nachträgliche Korrekturen von GeoSphere übernommen werden.
+# Tägliche Aktualisierung bestehender Rasterpunkte.
 LOOKBACK_DAYS = 14
+
+# Mindestabdeckung der älteren Historie.
+MIN_HISTORY_COVERAGE = 0.98
 
 BATCH_SIZE = 100
 TIMEOUT = 180
@@ -47,9 +51,7 @@ STATE_SLUGS = {
 
 def load_json(path):
     return json.loads(
-        path.read_text(
-            encoding="utf-8"
-        )
+        path.read_text(encoding="utf-8")
     )
 
 
@@ -59,22 +61,23 @@ def save_json(path, obj):
         exist_ok=True,
     )
 
-    path.write_text(
+    temporary = path.with_suffix(".tmp")
+
+    temporary.write_text(
         json.dumps(
             obj,
             ensure_ascii=False,
             separators=(",", ":"),
+            allow_nan=False,
         ),
         encoding="utf-8",
     )
 
+    temporary.replace(path)
+
 
 def chunks(items, size):
-    for i in range(
-        0,
-        len(items),
-        size,
-    ):
+    for i in range(0, len(items), size):
         yield items[i:i + size]
 
 
@@ -93,10 +96,7 @@ def parse_float(value):
         number = float(
             str(value).replace(",", ".")
         )
-    except (
-        TypeError,
-        ValueError,
-    ):
+    except (TypeError, ValueError):
         return None
 
     if not math.isfinite(number):
@@ -110,9 +110,7 @@ def find_column(
     exact=(),
     contains=(),
 ):
-    fields = list(
-        fieldnames or []
-    )
+    fields = list(fieldnames or [])
 
     lower = {
         str(name).lower(): name
@@ -136,28 +134,13 @@ def find_column(
     return None
 
 
-def request_csv(
-    grids,
-    start,
-    end,
-):
+def request_csv(grids, start, end):
+
     params = [
-        (
-            "parameters",
-            PARAMETER,
-        ),
-        (
-            "start",
-            start.isoformat(),
-        ),
-        (
-            "end",
-            end.isoformat(),
-        ),
-        (
-            "output_format",
-            "csv",
-        ),
+        ("parameters", PARAMETER),
+        ("start", start.isoformat()),
+        ("end", end.isoformat()),
+        ("output_format", "csv"),
     ]
 
     params.extend(
@@ -173,9 +156,7 @@ def request_csv(
 
     last_error = None
 
-    for attempt in range(
-        RETRIES
-    ):
+    for attempt in range(RETRIES):
         try:
             response = requests.get(
                 API,
@@ -190,13 +171,8 @@ def request_csv(
         except Exception as exc:
             last_error = exc
 
-            if (
-                attempt
-                < RETRIES - 1
-            ):
-                time.sleep(
-                    2 ** attempt
-                )
+            if attempt < RETRIES - 1:
+                time.sleep(2 ** attempt)
 
     raise RuntimeError(
         "GeoSphere SPARTACUS request "
@@ -205,67 +181,39 @@ def request_csv(
 
 
 def parse_rows(text):
+
     reader = csv.DictReader(
         io.StringIO(text)
     )
 
-    fields = (
-        reader.fieldnames
-        or []
-    )
+    fields = reader.fieldnames or []
 
     time_col = find_column(
         fields,
-        exact=(
-            "time",
-            "date",
-            "timestamp",
-        ),
-        contains=(
-            "time",
-            "date",
-        ),
+        exact=("time", "date", "timestamp"),
+        contains=("time", "date"),
     )
 
     lat_col = find_column(
         fields,
-        exact=(
-            "lat",
-            "latitude",
-        ),
-        contains=(
-            "latitude",
-            "lat",
-        ),
+        exact=("lat", "latitude"),
+        contains=("latitude", "lat"),
     )
 
     lon_col = find_column(
         fields,
-        exact=(
-            "lon",
-            "longitude",
-        ),
-        contains=(
-            "longitude",
-            "lon",
-        ),
+        exact=("lon", "longitude"),
+        contains=("longitude", "lon"),
     )
 
     tx_col = find_column(
         fields,
         exact=("TX",),
-        contains=(
-            "tx [",
-            "tx[",
-            "maximum",
-        ),
+        contains=("tx [", "tx[", "maximum"),
     )
 
-    if (
-        not time_col
-        or not lat_col
-        or not lon_col
-        or not tx_col
+    if not all(
+        (time_col, lat_col, lon_col, tx_col)
     ):
         raise RuntimeError(
             "Unerwartete SPARTACUS-"
@@ -275,21 +223,12 @@ def parse_rows(text):
     rows = []
 
     for row in reader:
-        raw_time = row.get(
-            time_col
-        )
 
-        lat = parse_float(
-            row.get(lat_col)
-        )
+        raw_time = row.get(time_col)
 
-        lon = parse_float(
-            row.get(lon_col)
-        )
-
-        tx = parse_float(
-            row.get(tx_col)
-        )
+        lat = parse_float(row.get(lat_col))
+        lon = parse_float(row.get(lon_col))
+        tx = parse_float(row.get(tx_col))
 
         if (
             not raw_time
@@ -311,58 +250,41 @@ def parse_rows(text):
     return rows
 
 
-def nearest_grid(
-    lat,
-    lon,
-    grids,
-):
+def nearest_grid(lat, lon, grids):
+
     return min(
         grids,
         key=lambda grid: (
             (grid["lat"] - lat) ** 2
-            +
-            (grid["lon"] - lon) ** 2
+            + (grid["lon"] - lon) ** 2
         ),
     )
 
 
 def municipality_grids():
+
     obj = load_json(
         DATA
         / "precipitation"
         / "municipalities.json"
     )
 
-    columns = obj["columns"]
-
     ix = {
         name: i
-        for i, name
-        in enumerate(columns)
+        for i, name in enumerate(
+            obj["columns"]
+        )
     }
 
     by_state = {}
 
-    for row in obj[
-        "municipalities"
-    ]:
-        state = row[
-            ix["state"]
-        ]
+    for row in obj["municipalities"]:
 
-        slug = row[
-            ix["state_slug"]
-        ]
+        state = row[ix["state"]]
+        slug = row[ix["state_slug"]]
+        grid_id = row[ix["grid_id"]]
 
-        grid_id = row[
-            ix["grid_id"]
-        ]
-
-        if (
-            not state
-            or not slug
-            or not grid_id
-        ):
+        if not state or not slug or not grid_id:
             continue
 
         by_state.setdefault(
@@ -370,56 +292,200 @@ def municipality_grids():
             {},
         )[grid_id] = {
             "id": grid_id,
-            "lat": float(
-                row[ix["grid_lat"]]
-            ),
-            "lon": float(
-                row[ix["grid_lon"]]
-            ),
+            "lat": float(row[ix["grid_lat"]]),
+            "lon": float(row[ix["grid_lon"]]),
         }
 
     result = {}
 
     for state in STATE_SLUGS:
-        unique = by_state.get(
-            state,
-            {},
-        )
+
+        unique = by_state.get(state, {})
 
         result[state] = [
             unique[grid_id]
-            for grid_id
-            in sorted(unique)
+            for grid_id in sorted(unique)
         ]
 
     return result
 
 
-def existing_start_date(
-    path,
-    today,
-):
-    if not path.exists():
-        return (
-            today
-            - timedelta(
-                days=HISTORY_DAYS
-            )
-        )
+def needs_history(rows, today):
+    """
+    Prüft die ältere Historie eines Rasterpunkts.
 
-    return (
-        today
-        - timedelta(
-            days=LOOKBACK_DAYS
-        )
+    Die jüngsten 14 Tage werden ohnehin bei
+    jedem täglichen Update neu geladen.
+    Deshalb prüfen wir hier ausschließlich
+    die davor liegenden Tage.
+
+    Neue Rasterpunkte, zu kurze Zeitreihen
+    und größere Datenlücken lösen einen
+    vollständigen 120-Tage-Abruf aus.
+    """
+
+    if not rows:
+        return True
+
+    history_start = (
+        today - timedelta(days=HISTORY_DAYS)
     )
 
+    history_end = (
+        today - timedelta(days=LOOKBACK_DAYS + 1)
+    )
 
-def update_state(
+    expected_days = (
+        history_end - history_start
+    ).days + 1
+
+    valid_dates = set()
+
+    for row in rows:
+
+        if len(row) < 2:
+            continue
+
+        value = parse_float(row[1])
+
+        if value is None:
+            continue
+
+        try:
+            day = date.fromisoformat(row[0])
+        except (TypeError, ValueError):
+            continue
+
+        if history_start <= day <= history_end:
+            valid_dates.add(day)
+
+    coverage = (
+        len(valid_dates) / expected_days
+        if expected_days > 0
+        else 1
+    )
+
+    return coverage < MIN_HISTORY_COVERAGE
+
+
+def update_grid_group(
     state,
     grids,
-    today,
+    store,
+    start,
+    end,
+    label,
 ):
+
+    if not grids:
+        return 0
+
+    batches = list(
+        chunks(grids, BATCH_SIZE)
+    )
+
+    changed = 0
+
+    print(
+        f"{state}: {label}, "
+        f"{len(grids)} Rasterpunkte, "
+        f"{start} bis {end}",
+        flush=True,
+    )
+
+    for batch_number, batch in enumerate(
+        batches,
+        start=1,
+    ):
+
+        rows = parse_rows(
+            request_csv(batch, start, end)
+        )
+
+        if not rows:
+            raise RuntimeError(
+                f"{state}: Keine gültigen "
+                "SPARTACUS-Daten erhalten."
+            )
+
+        values_by_grid = {
+            grid["id"]: {
+                row[0]: row[1]
+                for row in store.get(
+                    grid["id"],
+                    [],
+                )
+            }
+            for grid in batch
+        }
+
+        received_ids = set()
+        resolved = {}
+
+        for day, lat, lon, value in rows:
+
+            if not (
+                start.isoformat()
+                <= day
+                <= end.isoformat()
+            ):
+                continue
+
+            coordinate = (lat, lon)
+
+            if coordinate not in resolved:
+
+                grid = nearest_grid(
+                    lat,
+                    lon,
+                    batch,
+                )
+
+                resolved[coordinate] = grid["id"]
+
+            grid_id = resolved[coordinate]
+
+            received_ids.add(grid_id)
+
+            values = values_by_grid[grid_id]
+
+            if values.get(day) != value:
+                changed += 1
+
+            values[day] = value
+
+        missing_ids = {
+            grid["id"]
+            for grid in batch
+        } - received_ids
+
+        if missing_ids:
+            raise RuntimeError(
+                f"{state}: Keine neuen Daten "
+                f"für {len(missing_ids)} "
+                "Rasterpunkte erhalten."
+            )
+
+        for grid_id, values in (
+            values_by_grid.items()
+        ):
+            store[grid_id] = [
+                [day, values[day]]
+                for day in sorted(values)
+            ]
+
+        print(
+            f"{state}: {label}, "
+            f"Batch {batch_number}/{len(batches)} "
+            "fertig",
+            flush=True,
+        )
+
+    return changed
+
+
+def update_state(state, grids, today):
+
     slug = STATE_SLUGS[state]
 
     path = (
@@ -428,196 +494,161 @@ def update_state(
         / f"{slug}.json"
     )
 
-    start = existing_start_date(
-        path,
-        today,
+    end = today - timedelta(days=1)
+
+    history_start = (
+        today - timedelta(days=HISTORY_DAYS)
     )
 
-    # Nur abgeschlossene Tage.
-    end = (
-        today
-        - timedelta(days=1)
+    update_start = (
+        today - timedelta(days=LOOKBACK_DAYS)
     )
-
-    if start > end:
-        return
 
     if path.exists():
         obj = load_json(path)
     else:
         obj = {
-            "metric": (
-                "daily_max_temperature"
-            ),
+            "metric": "daily_max_temperature",
             "parameter": PARAMETER,
             "unit": "°C",
-            "columns": [
-                "date",
-                "tx",
-            ],
+            "columns": ["date", "tx"],
             "grids": {},
         }
-
-    store = obj.setdefault(
-        "grids",
-        {},
-    )
 
     valid_grid_ids = {
         grid["id"]
         for grid in grids
     }
 
+    # Veraltete Rasterpunkte entfernen.
     store = {
         grid_id: rows
-        for grid_id, rows in store.items()
+        for grid_id, rows in (
+            obj.get("grids", {}).items()
+        )
         if grid_id in valid_grid_ids
     }
 
     obj["grids"] = store
 
+    history_grids = []
+    update_grids = []
+
+    # Historie für jeden Rasterpunkt
+    # individuell prüfen.
+    for grid in grids:
+
+        grid_id = grid["id"]
+
+        existing_rows = store.get(
+            grid_id,
+            [],
+        )
+
+        if needs_history(existing_rows, today):
+            history_grids.append(grid)
+        else:
+            update_grids.append(grid)
+
     print()
+    print("=" * 64)
+    print(f"{state}: {len(grids)} Rasterpunkte")
     print(
-        f"{state}: "
-        f"{len(grids)} Rasterpunkte, "
-        f"{start} bis {end}"
+        f"120-Tage-Historie: {len(history_grids)}"
     )
+    print(
+        f"14-Tage-Update: {len(update_grids)}"
+    )
+    print("=" * 64, flush=True)
 
     changed = 0
 
-    for batch_number, batch in enumerate(
-        chunks(
-            grids,
-            BATCH_SIZE,
-        ),
-        start=1,
-    ):
-        rows = parse_rows(
-            request_csv(
-                batch,
-                start,
-                end,
-            )
-        )
+    # Neue Rasterpunkte und unvollständige
+    # historische Zeitreihen reparieren.
+    changed += update_grid_group(
+        state,
+        history_grids,
+        store,
+        history_start,
+        end,
+        "Historie",
+    )
 
-        for (
-            day,
-            lat,
-            lon,
-            value,
-        ) in rows:
-            grid = nearest_grid(
-                lat,
-                lon,
-                batch,
-            )
+    # Bestehende vollständige Zeitreihen
+    # wie bisher ressourcenschonend aktualisieren.
+    changed += update_grid_group(
+        state,
+        update_grids,
+        store,
+        update_start,
+        end,
+        "Tagesupdate",
+    )
 
-            grid_id = grid["id"]
+    cutoff = history_start.isoformat()
+    end_string = end.isoformat()
 
-            existing_rows = (
-                store.get(
-                    grid_id,
-                    [],
-                )
-            )
+    for grid_id in list(store):
 
-            values = {
-                row[0]: row[1]
-                for row
-                in existing_rows
-            }
-
-            if (
-                values.get(day)
-                != value
-            ):
-                changed += 1
-
-            values[day] = value
-
-            store[grid_id] = [
-                [
-                    date_string,
-                    values[
-                        date_string
-                    ],
-                ]
-                for date_string
-                in sorted(values)
-            ]
-
-        print(
-            f"{state}: Batch "
-            f"{batch_number} fertig"
-        )
-
-    # Nur den Zeitraum behalten,
-    # den der 90-Tage-Chart benötigt,
-    # plus Sicherheitsreserve.
-    cutoff = (
-        today
-        - timedelta(
-            days=HISTORY_DAYS
-        )
-    ).isoformat()
-
-    for grid_id in list(
-        store
-    ):
         store[grid_id] = [
             row
-            for row
-            in store[grid_id]
-            if row[0] >= cutoff
+            for row in store[grid_id]
+            if (
+                cutoff <= row[0] <= end_string
+                and parse_float(row[1]) is not None
+            )
         ]
 
-    obj[
-        "generated_at"
-    ] = today.isoformat()
+    remaining_gaps = [
+        grid["id"]
+        for grid in grids
+        if needs_history(
+            store.get(grid["id"], []),
+            today,
+        )
+    ]
 
-    obj[
-        "history_days"
-    ] = HISTORY_DAYS
+    if remaining_gaps:
+        print(
+            f"WARNUNG: {state}: "
+            f"{len(remaining_gaps)} Rasterpunkte "
+            "haben weiterhin historische "
+            "Datenlücken.",
+            flush=True,
+        )
 
-    obj[
-        "grid_count"
-    ] = len(store)
+    obj["generated_at"] = today.isoformat()
+    obj["history_days"] = HISTORY_DAYS
+    obj["grid_count"] = len(store)
 
-    save_json(
-        path,
-        obj,
-    )
+    save_json(path, obj)
 
     print(
         f"{state}: "
-        f"{len(store)}/"
-        f"{len(grids)} Rasterpunkte, "
-        f"{changed} Werte neu/geändert"
+        f"{len(store)}/{len(grids)} Rasterpunkte, "
+        f"{changed} Werte neu/geändert",
+        flush=True,
     )
 
 
 def run():
+
     today = datetime.now(
         timezone.utc
     ).astimezone(
         ZoneInfo("Europe/Vienna")
     ).date()
 
-    grids_by_state = (
-        municipality_grids()
-    )
+    grids_by_state = municipality_grids()
 
     total_expected = 0
     total_written = 0
 
     for state in STATE_SLUGS:
-        grids = grids_by_state[
-            state
-        ]
 
-        total_expected += len(
-            grids
-        )
+        grids = grids_by_state[state]
+
+        total_expected += len(grids)
 
         update_state(
             state,
@@ -628,43 +659,29 @@ def run():
         path = (
             TEMP_GRID
             / "current"
-            / (
-                STATE_SLUGS[
-                    state
-                ]
-                + ".json"
-            )
+            / f"{STATE_SLUGS[state]}.json"
         )
 
         if path.exists():
-            obj = load_json(
-                path
-            )
+
+            obj = load_json(path)
 
             total_written += int(
-                obj.get(
-                    "grid_count",
-                    0,
-                )
+                obj.get("grid_count", 0)
             )
 
     print()
     print(
         "Temperature grid current "
         f"update complete: "
-        f"{total_written}/"
-        f"{total_expected} grids"
+        f"{total_written}/{total_expected} grids"
     )
 
-    if (
-        total_written
-        != total_expected
-    ):
+    if total_written != total_expected:
         raise RuntimeError(
             "Temperature grid current "
             "coverage is incomplete: "
-            f"{total_written}/"
-            f"{total_expected}"
+            f"{total_written}/{total_expected}"
         )
 
 
