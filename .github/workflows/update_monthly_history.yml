@@ -1,0 +1,68 @@
+
+name: Update monthly climate history
+
+on:
+  workflow_dispatch: {}
+
+  # Nach erfolgreichem Österreich-Build aktivieren:
+  # schedule:
+  #   - cron: "30 8 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate-data-write
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Update monthly climate data
+        run: |
+          python scripts/build_monthly_history.py \
+            --mode update \
+            --metric all \
+            --state all
+
+      - name: Commit updated monthly data
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for dir in \
+            docs/data/temperature_grid/monthly \
+            docs/data/precipitation/monthly \
+            docs/data/snow/monthly
+          do
+            if [ -d "$dir" ]; then
+              git add "$dir"
+            fi
+          done
+
+          if git diff --cached --quiet; then
+            echo "No monthly data changes."
+            exit 0
+          fi
+
+          git commit -m "Update monthly climate history"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
