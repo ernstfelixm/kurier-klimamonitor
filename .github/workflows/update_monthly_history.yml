@@ -4,10 +4,6 @@ name: Update monthly climate history
 on:
   workflow_dispatch: {}
 
-  # Nach erfolgreichem Österreich-Build aktivieren:
-  # schedule:
-  #   - cron: "30 8 * * *"
-
 permissions:
   contents: write
 
@@ -42,27 +38,47 @@ jobs:
             --metric all \
             --state all
 
+      - name: Validate monthly climate history
+        run: python scripts/validate_monthly_history.py
+
+      - name: Publish quality report
+        if: always()
+        shell: bash
+        run: |
+          if [ -f monthly_quality_report.md ]; then
+            cat monthly_quality_report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload quality reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-climate-quality-report
+          path: |
+            monthly_quality_report.md
+            monthly_quality_report.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Build premium climate teasers
+        run: python scripts/build_premium_teasers.py
+
       - name: Commit updated monthly data
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          for dir in \
+          git add \
             docs/data/temperature_grid/monthly \
             docs/data/precipitation/monthly \
             docs/data/snow/monthly
-          do
-            if [ -d "$dir" ]; then
-              git add "$dir"
-            fi
-          done
 
           if git diff --cached --quiet; then
             echo "No monthly data changes."
             exit 0
           fi
 
-          git commit -m "Update monthly climate history"
+          git commit -m "Update monthly climate history and premium teasers"
           git pull --rebase origin "$GITHUB_REF_NAME"
           git push origin "HEAD:$GITHUB_REF_NAME"
