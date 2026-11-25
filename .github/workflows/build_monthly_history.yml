@@ -1,0 +1,92 @@
+
+name: Build monthly climate history
+
+on:
+  workflow_dispatch:
+    inputs:
+      metric:
+        description: "Klimamonitor"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - temperature
+          - precipitation
+          - snow
+
+      state:
+        description: "Bundesland"
+        required: true
+        default: "wien"
+        type: choice
+        options:
+          - wien
+          - all
+          - burgenland
+          - kaernten
+          - niederoesterreich
+          - oberoesterreich
+          - salzburg
+          - steiermark
+          - tirol
+          - vorarlberg
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate-monthly-history
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build historical monthly data
+        run: |
+          python scripts/build_monthly_history.py \
+            --mode build \
+            --metric "${{ inputs.metric }}" \
+            --state "${{ inputs.state }}"
+
+      - name: Commit monthly climate data
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for dir in \
+            docs/data/temperature_grid/monthly \
+            docs/data/precipitation/monthly \
+            docs/data/snow/monthly
+          do
+            if [ -d "$dir" ]; then
+              git add "$dir"
+            fi
+          done
+
+          if git diff --cached --quiet; then
+            echo "No monthly data changes."
+            exit 0
+          fi
+
+          git commit -m "Build historical monthly climate data"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
